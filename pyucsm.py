@@ -2,6 +2,8 @@ from pyexpat import ExpatError
 
 __author__ = 'nsokolov'
 
+_DEBUG = False
+
 import httplib
 from xml.dom import minidom
 from threading import Timer
@@ -104,7 +106,8 @@ class UcsmConnection:
         conn.request("POST", self.__ENDPOINT, body)
         reply = conn.getresponse()
         reply_data = reply.read()
-        print reply_data
+        if _DEBUG:
+            print reply_data
         try:
             reply_xml = minidom.parseString(reply_data)
         except:

@@ -33,9 +33,10 @@ class TestUcsmConnection(unittest.TestCase):
         
     def test_connection_wrong_password(self):
         c = pyucsm.UcsmConnection(_host, 80)
-        with self.assertRaises(pyucsm.UcsmResponseError):
-            c.login(_login, 'this is wrong password')
-            c.logout()
+        if not testucsmparams.simulator:
+            with self.assertRaises(pyucsm.UcsmResponseError):
+                c.login(_login, 'this is wrong password')
+                c.logout()
 
     def test_connection_404(self):
         c = pyucsm.UcsmConnection('example.com', 80)
