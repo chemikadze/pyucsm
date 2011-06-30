@@ -134,7 +134,7 @@ class UcsmConnection:
                                and child.nodeName == 'dn']
             return map(lambda c: c.attributes['value'].value.encode('utf8'), xml_childs)
         except KeyError, IndentationError:
-            raise UcsmFatalError('No outConfig section in server response!')
+            raise UcsmFatalError('No outUnresolved section in server response!')
 
     def resolve_children(self, class_id, dn, hierarchy=False, filter=UcsmFilterOp()):
         data,conn = self._perform_query('configResolveChildren',
@@ -143,6 +143,7 @@ class UcsmConnection:
                                         classId = class_id,
                                         inDn = dn,
                                         inHierarchical = hierarchy and "yes" or "no")
+        self._check_is_error(data.firstChild)
         return self._get_objects_from_response(data)
 
     def resolve_class(self, class_id, filter=UcsmFilterOp(), hierarchy=False):
@@ -151,6 +152,7 @@ class UcsmConnection:
                                    cookie = self.__cookie,
                                    classId = class_id,
                                    inHierarchical = hierarchy and "yes" or "no")
+        self._check_is_error(data.firstChild)
         return self._get_objects_from_response(data)
 
     def resolve_classes(self, classes, hierarchy=False):
@@ -158,6 +160,7 @@ class UcsmConnection:
         data,conn = self._perform_complex_query('configResolveClasses',
                                                 data = classes_xml,
                                                 inHierarchical = hierarchy and "yes" or "no")
+        self._check_is_error(data.firstChild)
         return self._get_objects_from_response(data)
 
     def resolve_dn(self, dn, hierarchy=False):
@@ -165,6 +168,7 @@ class UcsmConnection:
                                         cookie = self.__cookie,
                                         dn = dn,
                                         inHierarchical = hierarchy and "yes" or "no")
+        self._check_is_error(data.firstChild)
         res = self._get_single_object_from_response(data)
         if res:
             return res
@@ -178,15 +182,32 @@ class UcsmConnection:
         data,conn = self._perform_complex_query('configResolveDns',
                                         data = dns_xml,
                                         inHierarchical = hierarchy and "yes" or "no")
+        self._check_is_error(data.firstChild)
         resolved = self._get_objects_from_response(data)
         unresolved = self._get_unresolved_from_response(data)
         return resolved, unresolved
+
+    def find_dns_by_class_id(self, class_id, filter=None):
+        data,conn = self._perform_query('configFindDnsByClassId',
+                                                filter=filter,
+                                                cookie = self.__cookie,
+                                                classId = class_id)
+        self._check_is_error(data.firstChild)
+        try:
+            out_dns_node = data.getElementsByTagName('outDns')[0]
+            dns = [ child.attributes['value'].value.encode('utf8') for child in out_dns_node.childNodes
+                        if child.nodeType == dom.Node.ELEMENT_NODE]
+            return dns
+        except IndexError,KeyError:
+            raise UcsmFatalError('No outDns section in server response!')
+
 
     def resolve_parent(self, dn, hierarchy=False):
         data,conn = self._perform_query('configResolveParent',
                                         cookie = self.__cookie,
                                         dn = dn,
                                         inHierarchical = hierarchy and "yes" or "no")
+        self._check_is_error(data.firstChild)
         res = self._get_single_object_from_response(data)
         if res:
             return res
@@ -202,8 +223,8 @@ class UcsmConnection:
 
     def _check_is_error(self, response_atom):
         if response_atom.attributes.has_key("errorCode"):
-            error_code = response_atom.attributes["errorCode"]
-            error_description = response_atom.attributes["errorDescr"]
+            error_code = int(response_atom.attributes["errorCode"].value)
+            error_description = response_atom.attributes["errorDescr"].value.encode('utf8')
             raise UcsmResponseError(error_code, error_description)
 
     def _perform_xml_call(self, request_data, headers=None):

@@ -28,14 +28,18 @@ class TestUcsmConnection(MyBaseTest):
 
     def test_connection_ok(self):
         c = pyucsm.UcsmConnection(_host, 80)
-        c.login(_login, _password)
-        c.logout()
+        try:
+            c.login(_login, _password)
+        finally:
+            c.logout()
 
     def test_connection_refresh(self):
         c = pyucsm.UcsmConnection(_host, 80)
-        c.login(_login, _password)
-        c.refresh()
-        c.logout()
+        try:
+            c.login(_login, _password)
+            c.refresh()
+        finally:
+            c.logout()
         
     def test_connection_wrong_password(self):
         c = pyucsm.UcsmConnection(_host, 80)
@@ -133,61 +137,87 @@ class TestUcsmConnection(MyBaseTest):
 
     def test_resolve_children(self):
         c = pyucsm.UcsmConnection(_host, 80)
-        c.login(_login, _password)
-        res = c.resolve_children('aaaUser', 'sys/user-ext')
-        self.assertIsInstance(res, list)
-        if len(res):
-            self.assertIsInstance(res[0], pyucsm.UcsmObject)
-        c.logout()
+        try:
+            c.login(_login, _password)
+            res = c.resolve_children('aaaUser', 'sys/user-ext')
+            self.assertIsInstance(res, list)
+            if len(res):
+                self.assertIsInstance(res[0], pyucsm.UcsmObject)
+        finally:
+            c.logout()
 
     def test_resolve_class(self):
         c = pyucsm.UcsmConnection(_host, 80)
-        c.login(_login, _password)
-        res = c.resolve_class('pkiEp')
-        self.assertIsInstance(res, list)
-        self.assertIsInstance(res[0], pyucsm.UcsmObject)
-        res = c.resolve_class('pkiEp', filter=(pyucsm.UcsmAttribute('pkiEp', 'intId')<0))
-        self.assertIsInstance(res, list)
-        self.assertEquals(0, len(res))
-        c.logout()
+        try:
+            c.login(_login, _password)
+            res = c.resolve_class('pkiEp')
+            self.assertIsInstance(res, list)
+            self.assertIsInstance(res[0], pyucsm.UcsmObject)
+            res = c.resolve_class('pkiEp', filter=(pyucsm.UcsmAttribute('pkiEp', 'intId')<0))
+            self.assertIsInstance(res, list)
+            self.assertEquals(0, len(res))
+        finally:
+            c.logout()
 
     def test_resolve_classes(self):
         c = pyucsm.UcsmConnection(_host, 80)
-        c.login(_login, _password)
-        res = c.resolve_classes(['computeItem', 'equipmentChassis'])
-        self.assertIsInstance(res, list)
-        self.assertGreater(len(res), 0)
-        self.assertIsInstance(res[0], pyucsm.UcsmObject)
-        c.logout()
+        try:
+            c.login(_login, _password)
+            res = c.resolve_classes(['computeItem', 'equipmentChassis'])
+            self.assertIsInstance(res, list)
+            self.assertGreater(len(res), 0)
+            self.assertIsInstance(res[0], pyucsm.UcsmObject)
+        finally:
+            c.logout()
 
     def test_resolve_dn(self):
         c = pyucsm.UcsmConnection(_host, 80)
-        c.login(_login, _password)
-        res = c.resolve_dn('sys')
-        self.assertIsInstance(res, pyucsm.UcsmObject)
-        res = c.resolve_dn('qewr')
-        self.assertIsNone(res)
-        c.logout()
+        try:
+            c.login(_login, _password)
+            res = c.resolve_dn('sys')
+            self.assertIsInstance(res, pyucsm.UcsmObject)
+            res = c.resolve_dn('qewr')
+            self.assertIsNone(res)
+        finally:
+            c.logout()
 
     def test_resolve_dns(self):
         c = pyucsm.UcsmConnection(_host, 80)
-        c.login(_login, _password)
-        res,unres = c.resolve_dns(['sys', 'mac', 'ololo'])
-        self.assertIsInstance(res, list)
-        self.assertIsInstance(unres, list)
-        self.assertEquals(len(res), 2)
-        self.assertEquals(len(unres), 1)
-        c.logout()
+        try:
+            c.login(_login, _password)
+            res,unres = c.resolve_dns(['sys', 'mac', 'ololo'])
+            self.assertIsInstance(res, list)
+            self.assertIsInstance(unres, list)
+            self.assertEquals(len(res), 2)
+            self.assertEquals(len(unres), 1)
+        finally:
+            c.logout()
 
     def test_resolve_parent(self):
         c = pyucsm.UcsmConnection(_host, 80)
-        c.login(_login, _password)
-        res = c.resolve_parent('sys/user-ext')
-        self.assertIsInstance(res, pyucsm.UcsmObject)
-        self.assertEquals(res.dn, 'sys')
-        res = c.resolve_parent('sys/this/is/bullshit')
-        self.assertIsNone(res)
-        c.logout()
+        try:
+            c.login(_login, _password)
+            res = c.resolve_parent('sys/user-ext')
+            self.assertIsInstance(res, pyucsm.UcsmObject)
+            self.assertEquals(res.dn, 'sys')
+            res = c.resolve_parent('sys/this/is/bullshit')
+            self.assertIsNone(res)
+        finally:
+            c.logout()
+
+    def test_find_dns_by_class_id(self):
+        c = pyucsm.UcsmConnection(_host, 80)
+        try:
+            c.login(_login, _password)
+            res = c.find_dns_by_class_id('macpoolUniverse')
+            self.assertIsInstance(res, list)
+            self.assertEquals(len(res), 1)
+            self.assertEquals(res[0], 'mac')
+            with self.assertRaises(pyucsm.UcsmFatalError):
+                res = c.find_dns_by_class_id('notrealclass')
+            print res
+        finally:
+            c.logout()
 
 if __name__ == '__main__':
     unittest.main()
