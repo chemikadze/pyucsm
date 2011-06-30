@@ -2,12 +2,20 @@ from pyexpat import ExpatError
 
 __author__ = 'nsokolov'
 
-_DEBUG = False
+_DEBUG = True
 
 import httplib
 from xml.dom import minidom
+import xml.dom as dom
 from threading import Timer
 from pyexpat import ExpatError
+
+def _iterable(possibly_iterable):
+    try:
+        iter(possibly_iterable)
+    except TypeError:
+        return False
+    return True
 
 class UcsmError(Exception):
     """Any error during UCSM session.
@@ -32,6 +40,17 @@ class UcsmResponseError(Exception):
         self.text = text
         super(UcsmResponseError, self).__init__(text)
 
+
+class UcsmFilterOp:
+    def xml(self):
+        return ''
+
+    def final_xml(self):
+        return "<inFilter>\n\t%s\n</inFilter>" % self.xml()
+
+    def _raise_type_mismatch(self, obj):
+        raise UcsmTypeMismatchError("Expected UcsmPropertyFilter or UcsmComposeFilter, got object %s" % repr(obj))
+
 class UcsmConnection:
     __ENDPOINT = '/nuova'
 
@@ -45,7 +64,7 @@ class UcsmConnection:
         """Performs authorisation and retrieving cookie from server. Cookie refresh will be performed automatically.
         """
         try:
-            body = '<aaaLogin inName="%(login)s" inPassword="%(password)s"/>' % locals()
+            body = self._instantiate_simple_query('aaaLogin', inName=login, inPassword=password)
             reply_xml, conn = self._perform_xml_call(body)
             response_atom = reply_xml.firstChild
             self._get_cookie_from_xml(response_atom)
@@ -61,7 +80,7 @@ class UcsmConnection:
     def logout(self):
         try:
             cookie = self.__cookie
-            body = '<aaaLogout inCookie="%(cookie)s"/>' % locals()
+            body = self._instantiate_simple_query('aaaLogout', inCookie=cookie)
             reply_xml, conn = self._perform_xml_call(body)
             response_atom = reply_xml.firstChild
             if response_atom.attributes["response"].value =="yes":
@@ -80,12 +99,99 @@ class UcsmConnection:
             login = self.__login
             password = self.__password
             cookie = self.__cookie
-            body = '<aaaRefresh inName="%(login)s" inPassword="%(password)s" inCookie="%(cookie)s"/>' % locals()
+            body = self._instantiate_simple_query('aaaRefresh', inName=login, inPassword=password, inCookie=cookie)
             reply_xml, conn = self._perform_xml_call(body)
             response_atom = reply_xml.firstChild
             self._get_cookie_from_xml(response_atom)
         except KeyError:
             raise UcsmFatalError("Wrong reply syntax.")
+
+    def _get_single_object_from_response(self, data):
+        try:
+            out_config = data.getElementsByTagName('outConfig')[0]
+            xml_childs = [child for child in out_config.childNodes if child.nodeType == dom.Node.ELEMENT_NODE]
+            childs = map(lambda c: UcsmObject(c), xml_childs)
+            if len(childs):
+                return childs[0]
+            else:
+                return None
+        except KeyError, IndexError:
+            raise UcsmFatalError('No outConfig section in server response!')
+
+    def _get_objects_from_response(self, data):
+        try:
+            out_config = data.getElementsByTagName('outConfigs')[0]
+            xml_childs = [child for child in out_config.childNodes if child.nodeType == dom.Node.ELEMENT_NODE]
+            return map(lambda c: UcsmObject(c), xml_childs)
+        except KeyError, IndexError:
+            raise UcsmFatalError('No outConfig section in server response!')
+
+    def _get_unresolved_from_response(self, data):
+        try:
+            out_config = data.getElementsByTagName('outUnresolved')[0]
+            xml_childs = [child for child in out_config.childNodes
+                            if child.nodeType == dom.Node.ELEMENT_NODE
+                               and child.nodeName == 'dn']
+            return map(lambda c: c.attributes['value'].value.encode('utf8'), xml_childs)
+        except KeyError, IndentationError:
+            raise UcsmFatalError('No outConfig section in server response!')
+
+    def resolve_children(self, class_id, dn, hierarchy=False, filter=UcsmFilterOp()):
+        data,conn = self._perform_query('configResolveChildren',
+                                        filter = filter,
+                                        cookie = self.__cookie,
+                                        classId = class_id,
+                                        inDn = dn,
+                                        inHierarchical = hierarchy and "yes" or "no")
+        return self._get_objects_from_response(data)
+
+    def resolve_class(self, class_id, filter=UcsmFilterOp(), hierarchy=False):
+        data,conn = self._perform_query('configResolveClass',
+                                   filter = filter,
+                                   cookie = self.__cookie,
+                                   classId = class_id,
+                                   inHierarchical = hierarchy and "yes" or "no")
+        return self._get_objects_from_response(data)
+
+    def resolve_classes(self, classes, hierarchy=False):
+        classes_xml = "<inIds>\n%s\n</inIds>" % ('\n'.join('<id value="%s"/>'%cls for cls in classes))
+        data,conn = self._perform_complex_query('configResolveClasses',
+                                                data = classes_xml,
+                                                inHierarchical = hierarchy and "yes" or "no")
+        return self._get_objects_from_response(data)
+
+    def resolve_dn(self, dn, hierarchy=False):
+        data,conn = self._perform_query('configResolveDn',
+                                        cookie = self.__cookie,
+                                        dn = dn,
+                                        inHierarchical = hierarchy and "yes" or "no")
+        res = self._get_single_object_from_response(data)
+        if res:
+            return res
+        else:
+            return None
+
+    def resolve_dns(self, dns, hierarchy=False):
+        """Returns tuple contains list of resolved objects and list of unresolved dns..
+        """
+        dns_xml = "<inDns>\n%s\n</inDns>" % ('\n'.join('<dn value="%s" />'%cls for cls in dns))
+        data,conn = self._perform_complex_query('configResolveDns',
+                                        data = dns_xml,
+                                        inHierarchical = hierarchy and "yes" or "no")
+        resolved = self._get_objects_from_response(data)
+        unresolved = self._get_unresolved_from_response(data)
+        return resolved, unresolved
+
+    def resolve_parent(self, dn, hierarchy=False):
+        data,conn = self._perform_query('configResolveParent',
+                                        cookie = self.__cookie,
+                                        dn = dn,
+                                        inHierarchical = hierarchy and "yes" or "no")
+        res = self._get_single_object_from_response(data)
+        if res:
+            return res
+        else:
+            return None
 
     def _refresh(self):
         self.__cookie = self.refresh()
@@ -103,11 +209,13 @@ class UcsmConnection:
     def _perform_xml_call(self, request_data, headers=None):
         conn = self._create_connection()
         body = request_data
+        if _DEBUG:
+            print ">> %s" % body
         conn.request("POST", self.__ENDPOINT, body)
         reply = conn.getresponse()
         reply_data = reply.read()
         if _DEBUG:
-            print reply_data
+            print "<< %s" % reply_data
         try:
             reply_xml = minidom.parseString(reply_data)
         except:
@@ -125,12 +233,44 @@ class UcsmConnection:
         else:
             raise UcsmFatalError()
 
+    def _perform_query(self, method, filter=None, **kwargs):
+        """Gets query method name and its parameters. Filter must be an instance of class, derived from UcsmFilterToken.
+        """
+        if filter is None:
+            body = self._instantiate_simple_query(method, **kwargs)
+        else:
+            body = self._instantiate_complex_query(method, child_data=filter.final_xml(), **kwargs)
+        data, conn = self._perform_xml_call(body)
+        return data, conn
 
-class UcsmFilterOp:
-    def xml(self):
-        return ''
-    def _raise_type_mismatch(self, obj):
-        raise UcsmTypeMismatchError("Expected UcsmPropertyFilter or UcsmComposeFilter, got object %s" % repr(obj))
+    def _perform_complex_query(self, method, data, filter=None, **kwargs):
+        """Gets query method name and its parameters. Filter must be an instance of class, derived from UcsmFilterToken.
+                 Data is a string for inner xml body.
+        """
+        if filter is None:
+            body = self._instantiate_complex_query(method, child_data=data, **kwargs)
+        else:
+            body = self._instantiate_complex_query(method, child_data=filter.final_xml()+'\n'+data, **kwargs)
+        data, conn = self._perform_xml_call(body)
+        return data, conn
+
+    def _instantiate_simple_query(self, method, **kwargs):
+        params = ' '.join( [('%s="%s"'%(key,value)) for key,value in kwargs.items()] )
+        return "<%(method)s %(params)s />" % locals()
+
+    def _instantiate_complex_query(self, method, child_data=None, **kwargs):
+        """Formats query with some child nodes. Child data can be string or list of strings.
+        """
+        if child_data is not None:
+            child_body = child_data
+            params = ' '.join( [('%s="%s"'%(key,value)) for key,value in kwargs.items()] )
+            if _iterable(child_data) and not isinstance(child_data, basestring):
+                child_body = '\n'.join(child_data_)
+            body = "<%(method)s %(params)s>\n\t%(child_body)s\n</%(method)s>" % locals()
+            return body
+        else:
+            return self._instantiate_simple_query(method, **kwargs)
+
 
 class UcsmAttribute:
     """Describes class attribute. You can use >, >=, <, <=, ==, != operators to create UCSM property filters. Also wildcard matching,
@@ -214,7 +354,7 @@ class UcsmPropertyFilter(UcsmFilterToken):
         prop = self.attribute.name
         cls = self.attribute.class_
         val = self.value
-        return '<%(op)s class="%(cls)s" prop="%(prop)s" value="%(val)s" />' % locals()
+        return '<%(op)s class="%(cls)s" property="%(prop)s" value="%(val)s" />' % locals()
 
 
 
@@ -237,3 +377,35 @@ class UcsmComposeFilter(UcsmFilterToken):
         op = self.operator
         args = "\n".join( arg.xml() for arg in self.arguments )
         return "<%(op)s>\n\t%(args)s\n</%(op)s>" % locals()
+
+
+class UcsmObject:
+    def __init__(self, dom_node=None):
+        self.children = []
+        self.attributes = {}
+        if dom_node is None:
+            self.ucs_class = None
+        else:
+            if dom_node.nodeType != dom.Node.ELEMENT_NODE:
+                raise TypeError('UcsmObjects can be created only from XML element nodes.')
+            self.children = []
+            self.attributes = {}
+            self.ucs_class = dom_node.nodeName.encode('utf8')
+            if dom_node is not None:
+                for child in dom_node.childNodes:
+                    if child.nodeType == dom.Node.ELEMENT_NODE:
+                        self.children.append(UcsmObject(child))
+            for attr,val in dom_node.attributes.items():
+                self.attributes[attr.encode('utf8')] = val.encode('utf8')
+
+    def __getattr__(self, item):
+        try:
+            return self.attributes[item]
+        except KeyError:
+            raise AttributeError('UcsmObject has no attribute \'%s\'' % item)
+
+    def __repr__(self):
+        repr = self.ucs_class
+        if len(self.attributes):
+            repr = repr + '; ' + ' '.join('%s=%s'%(n,v) for n,v in self.attributes.items())
+        return '<UcsmObject instance at %x with class %s>' % (id(self), repr)
