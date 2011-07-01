@@ -2,7 +2,7 @@ from pyexpat import ExpatError
 
 __author__ = 'nsokolov'
 
-_DEBUG = True
+_DEBUG = False
 
 import httplib
 from xml.dom import minidom
@@ -63,6 +63,11 @@ class UcsmConnection:
     def login(self, login, password):
         """Performs authorisation and retrieving cookie from server. Cookie refresh will be performed automatically.
         """
+        self.__cookie = None
+        self.__login = None
+        self.__password = None
+        self.version = None
+        self.session_id = None
         try:
             body = self._instantiate_simple_query('aaaLogin', inName=login, inPassword=password)
             reply_xml, conn = self._perform_xml_call(body)

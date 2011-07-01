@@ -10,6 +10,8 @@ _host = testucsmparams.host
 _login = testucsmparams.login
 _password = testucsmparams.password
 
+pyucsm._DEBUG = True
+
 class MyBaseTest(unittest.TestCase):
     def assertXmlEquals(self, str1, str2):
         return ''.join(str1.split()) == ''.join(str2.split())
