@@ -1,3 +1,4 @@
+#!/usr/bin/python
 __author__ = 'nsokolov'
 
 import unittest
@@ -6,9 +7,9 @@ import httplib
 import testucsmparams
 from xml.dom import minidom
 
-_host = testucsmparams.host
-_login = testucsmparams.login
-_password = testucsmparams.password
+_host = testucsmparams.HOST
+_login = testucsmparams.LOGIN
+_password = testucsmparams.PASSWORD
 
 pyucsm._DEBUG = True
 
@@ -45,7 +46,7 @@ class TestUcsmConnection(MyBaseTest):
         
     def test_connection_wrong_password(self):
         c = pyucsm.UcsmConnection(_host, 80)
-        if not testucsmparams.simulator:
+        if not testucsmparams.SIMULATOR:
             with self.assertRaises(pyucsm.UcsmResponseError):
                 c.login(_login, 'this is wrong password')
                 c.logout()
@@ -217,9 +218,37 @@ class TestUcsmConnection(MyBaseTest):
             self.assertEquals(res[0], 'mac')
             with self.assertRaises(pyucsm.UcsmFatalError):
                 res = c.find_dns_by_class_id('notrealclass')
-            print res
         finally:
             c.logout()
+
+    def test_conf_mo(self):
+        import random
+        if testucsmparams.SIMULATOR:
+            c = pyucsm.UcsmConnection(_host, 80)
+            try:
+                c.login(_login, _password)
+                src = pyucsm.UcsmObject()
+                src.ucs_class = 'aaaLdapEp'
+                src.attributes['timeout'] = random.randint(0, 60)
+                res = c.conf_mo(src, dn='sys/ldap-ext')
+                self.assertEquals(int(res.attributes['timeout']), src.attributes['timeout'])
+            finally:
+                c.logout()
+
+    def test_conf_mo_group(self):
+        import random
+        if testucsmparams.SIMULATOR:
+            c = pyucsm.UcsmConnection(_host, 80)
+            try:
+                c.login(_login, _password)
+                src = pyucsm.UcsmObject()
+                src.ucs_class = 'aaaLdapEp'
+                src.attributes['timeout'] = random.randint(0, 60)
+                dns = ''
+                res = c.conf_mo_group(src, dns, src)
+                self.assertEquals(int(res.attributes['timeout']), src.attributes['timeout'])
+            finally:
+                c.logout()
 
 if __name__ == '__main__':
     unittest.main()

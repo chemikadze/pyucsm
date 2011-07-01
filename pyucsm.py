@@ -1,3 +1,4 @@
+#!/usr/bin/python
 from pyexpat import ExpatError
 
 __author__ = 'nsokolov'
@@ -141,7 +142,7 @@ class UcsmConnection:
         except KeyError, IndentationError:
             raise UcsmFatalError('No outUnresolved section in server response!')
 
-    def resolve_children(self, class_id, dn, hierarchy=False, filter=UcsmFilterOp()):
+    def resolve_children(self, class_id='', dn='', hierarchy=False, filter=UcsmFilterOp()):
         data,conn = self._perform_query('configResolveChildren',
                                         filter = filter,
                                         cookie = self.__cookie,
@@ -423,9 +424,10 @@ class UcsmComposeFilter(UcsmFilterToken):
 
 
 class UcsmObject:
-    def __init__(self, dom_node=None):
+    def __init__(self, dom_node=None, parent=None):
         self.children = []
         self.attributes = {}
+        self.parent = parent
         if dom_node is None:
             self.ucs_class = None
         else:
@@ -435,9 +437,10 @@ class UcsmObject:
             self.attributes = {}
             self.ucs_class = dom_node.nodeName.encode('utf8')
             if dom_node is not None:
-                for child in dom_node.childNodes:
-                    if child.nodeType == dom.Node.ELEMENT_NODE:
-                        self.children.append(UcsmObject(child))
+                for child_node in dom_node.childNodes:
+                    if child_node.nodeType == dom.Node.ELEMENT_NODE:
+                        child = UcsmObject(child_node, self)
+                        self.children.append(child)
             for attr,val in dom_node.attributes.items():
                 self.attributes[attr.encode('utf8')] = val.encode('utf8')
 
@@ -452,6 +455,10 @@ class UcsmObject:
         if len(self.attributes):
             repr = repr + '; ' + ' '.join('%s=%s'%(n,v) for n,v in self.attributes.items())
         return '<UcsmObject instance at %x with class %s>' % (id(self), repr)
+
+    def xml(self):
+        attributes =  ' '.join('%s="%s"'%(n,v) for n,v in self.attributes.items())
+        return '<%s %s/>' % (self.ucs_class, attributes)
 
     def pretty_str(self):
         str = self.ucs_class
