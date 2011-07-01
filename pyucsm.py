@@ -214,10 +214,27 @@ class UcsmConnection:
                                         inHierarchical = hierarchy and "yes" or "no")
         self._check_is_error(data.firstChild)
         res = self._get_single_object_from_response(data)
-        if res:
-            return res
-        else:
-            return None
+        return res
+
+    def conf_mo(self, config, dn="", hierachy=True):                                     # untested
+        data,conn = self._perform_complex_query('configConfMo',
+                                                data='<inConfig>'+config.xml()+'</inConfig>',
+                                                dn = dn,
+                                                inHierarchical = hierachy and "yes" or "no")
+        self._check_is_error(data.firstChild)
+        res = self._get_single_object_from_response(data)
+        return res
+
+    def conf_mo_group(self, dns, config, hierarchy=False):                                  # untested
+        dns_data = '\n'.join('<dn value="%s" />' % dn for dn in dns)
+        data = '<inConfig>%s</inConfig>\n<inDns>%s</inDns>' % (config.xml(), dns_data)
+        data,conn = self._perform_complex_query('configConfMoGroup',
+                                                data=data,
+                                                dn = dn,
+                                                inHierarchical = hierarchy and "yes" or "no")
+        self._check_is_error(data.firstChild)
+        res = self._get_single_object_from_response(data)
+        return res
 
     def _refresh(self):
         self.__cookie = self.refresh()
@@ -435,3 +452,9 @@ class UcsmObject:
         if len(self.attributes):
             repr = repr + '; ' + ' '.join('%s=%s'%(n,v) for n,v in self.attributes.items())
         return '<UcsmObject instance at %x with class %s>' % (id(self), repr)
+
+    def pretty_str(self):
+        str = self.ucs_class
+        for name,val in self.attributes.items():
+            str += '\n%s: %s' % (name,val)
+        return str

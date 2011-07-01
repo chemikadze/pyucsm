@@ -24,11 +24,15 @@ def perform(host, login, password, command, args=dict(), port=80):
     try:
         client.login(login, password)
         try:
-            if command=='configFindDnsByClassId':
+            if command == 'configFindDnsByClassId':
                 class_id = args['classId']
                 dns = client.find_dns_by_class_id(class_id)
                 for dn in dns:
                     print dn
+            elif command == 'configResolveDn':
+                dn = args['dn']
+                obj = client.resolve_dn(dn)
+                print obj.pretty_str()
             else:
                 raise KeyError
         except KeyError:
@@ -41,7 +45,7 @@ def perform(host, login, password, command, args=dict(), port=80):
 if __name__ == '__main__':
     try:
         argv = sys.argv[1:]
-        opts, args = getopt.gnu_getopt(argv, 'l:p:P:d', ["classId=",])
+        opts, args = getopt.gnu_getopt(argv, 'l:p:P:d', ["classId=","dn="])
     except getopt.GetoptError:
         usage()
         exit()
