@@ -235,6 +235,21 @@ class TestUcsmConnection(MyBaseTest):
             finally:
                 c.logout()
 
+    def test__conf_mos(self):
+        import random
+        if testucsmparams.SIMULATOR:
+            c = pyucsm.UcsmConnection(_host, 80)
+            try:
+                c.login(_login, _password)
+                src = pyucsm.UcsmObject()
+                src.ucs_class = 'aaaLdapEp'
+                src.attributes['timeout'] = random.randint(0, 60)
+                res = c.conf_mos({'sys/ldap-ext':src})
+                print res, src
+                self.assertEquals(int(res['sys/ldap-ext'].attributes['timeout']), src.attributes['timeout'])
+            finally:
+                c.logout()
+
     def test_conf_mo_group(self):
         import random
         if testucsmparams.SIMULATOR:
@@ -244,9 +259,9 @@ class TestUcsmConnection(MyBaseTest):
                 src = pyucsm.UcsmObject()
                 src.ucs_class = 'aaaLdapEp'
                 src.attributes['timeout'] = random.randint(0, 60)
-                dns = ''
-                res = c.conf_mo_group(src, dns, src)
-                self.assertEquals(int(res.attributes['timeout']), src.attributes['timeout'])
+                dns = ['sys']
+                res = c.conf_mo_group(dns, src)
+                self.assertEquals(int(res[0].attributes['timeout']), src.attributes['timeout'])
             finally:
                 c.logout()
 

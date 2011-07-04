@@ -217,7 +217,7 @@ class UcsmConnection:
         res = self._get_single_object_from_response(data)
         return res
 
-    def conf_mo(self, config, dn="", hierachy=True):                                     # untested
+    def conf_mo(self, config, dn="", hierachy=True):
         data,conn = self._perform_complex_query('configConfMo',
                                                 data='<inConfig>'+config.xml()+'</inConfig>',
                                                 dn = dn,
@@ -226,16 +226,40 @@ class UcsmConnection:
         res = self._get_single_object_from_response(data)
         return res
 
-    def conf_mo_group(self, dns, config, hierarchy=False):                                  # untested
+    def conf_mos(self, configs):
+        """Gets dictionary of dn:config as configs argument. Equivalent for several configConfMo requests.
+        returns dirtionary of dn:canged_config.
+        """
+        configs = '<inConfigs>%s</inConfigs>' % '\n'.join('<pair key="%s">%s</pair>' %
+                                                          (k, c.xml()) for k,c in configs.items())
+        data,conn = self._perform_complex_query('configConfMos',
+                                                data=configs)
+        self._check_is_error(data.firstChild)
+        buf_res = self._get_objects_from_response(data)
+        res = {}
+        try:
+            for pair in buf_res:
+                if pair.ucs_class == 'pair':
+                    res[pair.key] = pair.children[0]
+                else:
+                    raise UcsmFatalError('Wrong reply: non-pair object in outConfigs section')
+            return res
+        except IndexError:
+            raise UcsmFatalError('Wrong reply: recieved pair does not contains value')
+        except AttributeError:
+            raise UcsmFatalError('Wrong reply: recieved pair does not have key')
+
+
+    def conf_mo_group(self, dns, config, hierarchy=False):
+        """Makes equivalent changes in several dns.
+        """
         dns_data = '\n'.join('<dn value="%s" />' % dn for dn in dns)
         data = '<inConfig>%s</inConfig>\n<inDns>%s</inDns>' % (config.xml(), dns_data)
         data,conn = self._perform_complex_query('configConfMoGroup',
                                                 data=data,
-                                                dn = dn,
                                                 inHierarchical = hierarchy and "yes" or "no")
         self._check_is_error(data.firstChild)
-        res = self._get_single_object_from_response(data)
-        return res
+        return self._get_objects_from_response(data)
 
     def _refresh(self):
         self.__cookie = self.refresh()
