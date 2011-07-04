@@ -65,6 +65,10 @@ def perform(host, login, password, command, args=list(), opts=dict(), port=80):
             hierarchy = 'inHierarchical' in opts
             objects = client.resolve_children(class_id, dn, hierarchy)
             print_objects(objects, only_dn='only-dn' in opts, hierarchy=hierarchy)
+        elif command == 'configResolveClasses':
+            hierarchy = 'inHierarchical' in opts
+            objects = client.resolve_classes(args, hierarchy)
+            print_objects(objects, only_dn='only-dn' in opts, hierarchy=hierarchy)
         else:
             raise KeyError
     except KeyError:
