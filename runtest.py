@@ -235,7 +235,7 @@ class TestUcsmConnection(MyBaseTest):
             finally:
                 c.logout()
 
-    def test__conf_mos(self):
+    def test_conf_mos(self):
         import random
         if testucsmparams.SIMULATOR:
             c = pyucsm.UcsmConnection(_host, 80)
@@ -262,6 +262,30 @@ class TestUcsmConnection(MyBaseTest):
                 dns = ['sys']
                 res = c.conf_mo_group(dns, src)
                 self.assertEquals(int(res[0].attributes['timeout']), src.attributes['timeout'])
+            finally:
+                c.logout()
+
+    def test_estimate_impact(self):
+        import random
+        if testucsmparams.SIMULATOR:
+            c = pyucsm.UcsmConnection(_host, 80)
+            try:
+                c.login(_login, _password)
+                with self.assertRaises(pyucsm.UcsmResponseError):
+                    admin_user = pyucsm.UcsmObject()
+                    admin_user.ucs_class = 'aaaUser'
+                    admin_user.attributes['status'] = 'deleted'
+                    admin_user.attributes['dn'] = 'sys/user-ext/user-admin'
+                    ack,old_ack,aff,old_aff = c.estimate_impact({'sys/user-ext/user-admin':admin_user})
+                newuser = pyucsm.UcsmObject()
+                newuser.ucs_class = 'aaaUser'
+                newuser.attributes['status'] = 'created'
+                newuser.attributes['dn'] = 'sys/user-ext/user-testuser'
+                ack,old_ack,aff,old_aff = c.estimate_impact({'sys/user-ext/user-testuser':newuser})
+                self.assertEquals(ack, [])
+                self.assertEquals(old_ack, [])
+                self.assertEquals(aff, [])
+                self.assertEquals(old_aff, [])
             finally:
                 c.logout()
 

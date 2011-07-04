@@ -127,10 +127,13 @@ class UcsmConnection:
     def _get_objects_from_response(self, data):
         try:
             out_config = data.getElementsByTagName('outConfigs')[0]
-            xml_childs = [child for child in out_config.childNodes if child.nodeType == dom.Node.ELEMENT_NODE]
-            return map(lambda c: UcsmObject(c), xml_childs)
+            return self._get_child_nodes_as_children(out_config)
         except KeyError, IndexError:
             raise UcsmFatalError('No outConfig section in server response!')
+
+    def _get_child_nodes_as_children(self, root):
+        xml_childs = [child for child in root.childNodes if child.nodeType == dom.Node.ELEMENT_NODE]
+        return map(lambda c: UcsmObject(c), xml_childs)
 
     def _get_unresolved_from_response(self, data):
         try:
@@ -249,6 +252,23 @@ class UcsmConnection:
         except AttributeError:
             raise UcsmFatalError('Wrong reply: recieved pair does not have key')
 
+    def estimate_impact(self, configs):
+        """Calculates impact of changing config on server. Returns four lists: ackables, old ackables,
+        affected and old affected configs.
+        """
+        configs = '<inConfigs>%s</inConfigs>' % '\n'.join('<pair key="%s">%s</pair>' %
+                                                          (k, c.xml()) for k,c in configs.items())
+        data,conn = self._perform_complex_query('configEstimateImpact',
+                                                data=configs)
+        self._check_is_error(data.firstChild)
+        try:
+            ackables = self._get_child_nodes_as_children(data.getElementsByTagName('outAckables')[0])
+            old_ackables = self._get_child_nodes_as_children(data.getElementsByTagName('outOldAckables')[0])
+            affected = self._get_child_nodes_as_children(data.getElementsByTagName('outAffected')[0])
+            old_affected = self._get_child_nodes_as_children(data.getElementsByTagName('outOldAffected')[0])
+            return ackables, old_ackables, affected, old_affected
+        except KeyError:
+            raise
 
     def conf_mo_group(self, dns, config, hierarchy=False):
         """Makes equivalent changes in several dns.
