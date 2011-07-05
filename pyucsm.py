@@ -240,8 +240,33 @@ class UcsmConnection(object):
         res = self._get_single_object_from_response(data)
         return res
 
-    def conf_mo(self, config, dn="", hierachy=True):
-        """Modifies or creates config."""
+    def _conf_mo_status(self, config, status, dn='', hierarchy=False):
+        """Side-effect eraser.
+        """
+        oldattr = None
+        if 'status' in config.attributes:
+            oldattr = config.status
+        config.status = status
+        res = self.conf_mo(config)
+        if not oldattr is None:
+            config.status = oldattr
+        return res
+
+    def create_object(self, conf, hierarchy=False):
+        return self._conf_mo_status(conf, 'created', hierarchy=hierarchy)
+
+    def delete_object(self, conf):
+        obj = UcsmObject(conf.ucs_class)
+        obj.dn = conf.dn
+        obj.status = 'deleted'
+        return self.conf_mo(obj)
+
+    def update_object(self, conf, hierarchy=False):
+        return self._conf_mo_status(conf, 'modified', hierarchy=hierarchy)
+
+    def conf_mo(self, config, dn="", hierachy=False):
+        """Modifies or creates config. Special config object attribute 'status' is used to
+        determines action. Possible values: ('created', 'deleted', 'modified')."""
         in_config_node = minidom.Element('inConfig')
         in_config_node.appendChild(config.xml_node())
         data,conn = self._perform_complex_query('configConfMo',
@@ -254,7 +279,8 @@ class UcsmConnection(object):
 
     def conf_mos(self, configs):
         """Gets dictionary of dn:config as configs argument. Equivalent for several configConfMo requests.
-        returns dirtionary of dn:canged_config.
+        returns dirtionary of dn:canged_config. Special config object attribute 'status' is used to
+        determines action. Possible values: ('created', 'deleted', 'modified').
         """
         configs_xml = minidom.Element('inConfigs')
         for k,c in configs.items():
