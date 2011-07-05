@@ -47,7 +47,18 @@ class UcsmFilterOp:
         return ''
 
     def final_xml(self):
-        return "<inFilter>\n\t%s\n</inFilter>" % self.xml()
+        return self.final_xml_node().toxml()
+
+    def final_xml_node(self):
+        node = minidom.Element('inFilter')
+        xml_node = self.xml_node()
+        node.appendChild(self.xml_node())
+        return node
+
+    def xml_node(self):
+        node = minidom.Text()
+        node.data = ''
+        return node
 
     def _raise_type_mismatch(self, obj):
         raise UcsmTypeMismatchError("Expected UcsmPropertyFilter or UcsmComposeFilter, got object %s" % repr(obj))
@@ -165,9 +176,13 @@ class UcsmConnection:
         return self._get_objects_from_response(data)
 
     def resolve_classes(self, classes, hierarchy=False):
-        classes_xml = "<inIds>\n%s\n</inIds>" % ('\n'.join('<id value="%s"/>'%cls for cls in classes))
+        classes_node = minidom.Element('inIds')
+        for cls in classes:
+            childnode = minidom.Element('id')
+            childnode.setAttribute('value', cls)
+            classes_node.appendChild(childnode)
         data,conn = self._perform_complex_query('configResolveClasses',
-                                                data = classes_xml,
+                                                data = classes_node,
                                                 inHierarchical = hierarchy and "yes" or "no")
         self._check_is_error(data.firstChild)
         return self._get_objects_from_response(data)
@@ -187,9 +202,14 @@ class UcsmConnection:
     def resolve_dns(self, dns, hierarchy=False):
         """Returns tuple contains list of resolved objects and list of unresolved dns..
         """
-        dns_xml = "<inDns>\n%s\n</inDns>" % ('\n'.join('<dn value="%s" />'%cls for cls in dns))
+        dns_node = minidom.Element('inDns')
+        for dn in dns:
+            childnode = minidom.Element('dn')
+            childnode.setAttribute('value', dn)
+            dns_node.appendChild(childnode)
         data,conn = self._perform_complex_query('configResolveDns',
-                                        data = dns_xml,
+                                        data = dns_node,
+                                        cookie = self.__cookie,
                                         inHierarchical = hierarchy and "yes" or "no")
         self._check_is_error(data.firstChild)
         resolved = self._get_objects_from_response(data)
@@ -221,8 +241,10 @@ class UcsmConnection:
         return res
 
     def conf_mo(self, config, dn="", hierachy=True):
+        in_config_node = minidom.Element('inConfig')
+        in_config_node.appendChild(config.xml_node())
         data,conn = self._perform_complex_query('configConfMo',
-                                                data='<inConfig>'+config.xml()+'</inConfig>',
+                                                data=in_config_node,
                                                 dn = dn,
                                                 inHierarchical = hierachy and "yes" or "no")
         self._check_is_error(data.firstChild)
@@ -233,10 +255,14 @@ class UcsmConnection:
         """Gets dictionary of dn:config as configs argument. Equivalent for several configConfMo requests.
         returns dirtionary of dn:canged_config.
         """
-        configs = '<inConfigs>%s</inConfigs>' % '\n'.join('<pair key="%s">%s</pair>' %
-                                                          (k, c.xml()) for k,c in configs.items())
+        configs_xml = minidom.Element('inConfigs')
+        for k,c in configs.items():
+            conf = minidom.Element('pair')
+            conf.setAttribute('key', k)
+            conf.appendChild(c.xml_node())
+            configs_xml.appendChild(conf)
         data,conn = self._perform_complex_query('configConfMos',
-                                                data=configs)
+                                                data=configs_xml)
         self._check_is_error(data.firstChild)
         buf_res = self._get_objects_from_response(data)
         res = {}
@@ -256,10 +282,14 @@ class UcsmConnection:
         """Calculates impact of changing config on server. Returns four lists: ackables, old ackables,
         affected and old affected configs.
         """
-        configs = '<inConfigs>%s</inConfigs>' % '\n'.join('<pair key="%s">%s</pair>' %
-                                                          (k, c.xml()) for k,c in configs.items())
+        configs_xml = minidom.Element('inConfigs')
+        for k,c in configs.items():
+            conf = minidom.Element('pair')
+            conf.setAttribute('key', k)
+            conf.appendChild(c.xml_node())
+            configs_xml.appendChild(conf)
         data,conn = self._perform_complex_query('configEstimateImpact',
-                                                data=configs)
+                                                data=configs_xml)
         self._check_is_error(data.firstChild)
         try:
             ackables = self._get_child_nodes_as_children(data.getElementsByTagName('outAckables')[0])
@@ -273,10 +303,15 @@ class UcsmConnection:
     def conf_mo_group(self, dns, config, hierarchy=False):
         """Makes equivalent changes in several dns.
         """
-        dns_data = '\n'.join('<dn value="%s" />' % dn for dn in dns)
-        data = '<inConfig>%s</inConfig>\n<inDns>%s</inDns>' % (config.xml(), dns_data)
+        config_xml = minidom.Element('inConfig')
+        config_xml.appendChild(config.xml_node())
+        dns_xml = minidom.Element('inDns')
+        for dn in dns:
+            dn_xml = minidom.Element('dn')
+            dn_xml.setAttribute('value', dn)
+            dns_xml.appendChild(dn_xml)
         data,conn = self._perform_complex_query('configConfMoGroup',
-                                                data=data,
+                                                data=[dns_xml, config_xml],
                                                 inHierarchical = hierarchy and "yes" or "no")
         self._check_is_error(data.firstChild)
         return self._get_objects_from_response(data)
@@ -327,7 +362,7 @@ class UcsmConnection:
         if filter is None:
             body = self._instantiate_simple_query(method, **kwargs)
         else:
-            body = self._instantiate_complex_query(method, child_data=filter.final_xml(), **kwargs)
+            body = self._instantiate_complex_query(method, child_data=filter.final_xml_node(), **kwargs)
         data, conn = self._perform_xml_call(body)
         return data, conn
 
@@ -338,24 +373,29 @@ class UcsmConnection:
         if filter is None:
             body = self._instantiate_complex_query(method, child_data=data, **kwargs)
         else:
-            body = self._instantiate_complex_query(method, child_data=filter.final_xml()+'\n'+data, **kwargs)
+            body = self._instantiate_complex_query(method, child_data=filter.final_xml_node()+'\n'+data, **kwargs)
         data, conn = self._perform_xml_call(body)
         return data, conn
 
     def _instantiate_simple_query(self, method, **kwargs):
-        params = ' '.join( [('%s="%s"'%(key,value)) for key,value in kwargs.items()] )
-        return "<%(method)s %(params)s />" % locals()
+        query = minidom.Element(method)
+        for key,value in kwargs.items():
+            query.setAttribute(key, str(value))
+        return query.toxml()
 
     def _instantiate_complex_query(self, method, child_data=None, **kwargs):
         """Formats query with some child nodes. Child data can be string or list of strings.
         """
         if child_data is not None:
-            child_body = child_data
-            params = ' '.join( [('%s="%s"'%(key,value)) for key,value in kwargs.items()] )
-            if _iterable(child_data) and not isinstance(child_data, basestring):
-                child_body = '\n'.join(child_data_)
-            body = "<%(method)s %(params)s>\n\t%(child_body)s\n</%(method)s>" % locals()
-            return body
+            query = minidom.Element(method)
+            for key,value in kwargs.items():
+                query.setAttribute(key, str(value))
+            if _iterable(child_data):
+                for child in child_data:
+                    query.appendChild(child)
+            else:
+                query.appendChild(child_data)
+            return query.toxml()
         else:
             return self._instantiate_simple_query(method, **kwargs)
 
@@ -438,13 +478,14 @@ class UcsmPropertyFilter(UcsmFilterToken):
         self.value = value
 
     def xml(self):
-        op = self.operator
-        prop = self.attribute.name
-        cls = self.attribute.class_
-        val = self.value
-        return '<%(op)s class="%(cls)s" property="%(prop)s" value="%(val)s" />' % locals()
+        return self.xml_node().toxml()
 
-
+    def xml_node(self):
+        node = minidom.Element(self.operator)
+        node.setAttribute('class', self.attribute.class_)
+        node.setAttribute('property', self.attribute.name)
+        node.setAttribute('value', str(self.value))
+        return node
 
 class UcsmComposeFilter(UcsmFilterToken):
 
@@ -462,9 +503,13 @@ class UcsmComposeFilter(UcsmFilterToken):
                 self.arguments.append(arg)
 
     def xml(self):
-        op = self.operator
-        args = "\n".join( arg.xml() for arg in self.arguments )
-        return "<%(op)s>\n\t%(args)s\n</%(op)s>" % locals()
+        return self.xml_node().toxml()
+
+    def xml_node(self):
+        node = minidom.Element(self.operator)
+        for arg in self.arguments:
+            node.appendChild(arg.xml_node())
+        return node
 
 
 class UcsmObject:
@@ -501,8 +546,14 @@ class UcsmObject:
         return '<UcsmObject instance at %x with class %s>' % (id(self), repr)
 
     def xml(self):
-        attributes =  ' '.join('%s="%s"'%(n,v) for n,v in self.attributes.items())
-        return '<%s %s/>' % (self.ucs_class, attributes)
+        return node.toxml()
+
+    def xml_node(self):
+        node = minidom.Element(self.ucs_class)
+        for n,v in self.attributes.items():
+            node.setAttribute(n, str(v))
+        return node
+
 
     def pretty_str(self):
         str = self.ucs_class
