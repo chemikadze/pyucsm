@@ -42,7 +42,7 @@ class UcsmResponseError(Exception):
         super(UcsmResponseError, self).__init__(text)
 
 
-class UcsmFilterOp:
+class UcsmFilterOp(object):
     def xml(self):
         return ''
 
@@ -63,7 +63,7 @@ class UcsmFilterOp:
     def _raise_type_mismatch(self, obj):
         raise UcsmTypeMismatchError("Expected UcsmPropertyFilter or UcsmComposeFilter, got object %s" % repr(obj))
 
-class UcsmConnection:
+class UcsmConnection(object):
     __ENDPOINT = '/nuova'
 
     def __init__(self, host, port=None, secure=False, *args, **kwargs):
@@ -241,6 +241,7 @@ class UcsmConnection:
         return res
 
     def conf_mo(self, config, dn="", hierachy=True):
+        """Modifies or creates config."""
         in_config_node = minidom.Element('inConfig')
         in_config_node.appendChild(config.xml_node())
         data,conn = self._perform_complex_query('configConfMo',
@@ -400,7 +401,7 @@ class UcsmConnection:
             return self._instantiate_simple_query(method, **kwargs)
 
 
-class UcsmAttribute:
+class UcsmAttribute(object):
     """Describes class attribute. You can use >, >=, <, <=, ==, != operators to create UCSM property filters. Also wildcard matching,
     all bits and any bits operators are avaliable.
     """
@@ -512,13 +513,18 @@ class UcsmComposeFilter(UcsmFilterToken):
         return node
 
 
-class UcsmObject:
+class UcsmObject(object):
+    __slots__ = ['__init__', '__getattr__', '__setattr__', '__repr__', 'xml', 'xml_node', 'pretty_xml',
+                 'children', 'attributes', 'parent', 'ucs_class']
+
     def __init__(self, dom_node=None, parent=None):
         self.children = []
         self.attributes = {}
         self.parent = parent
         if dom_node is None:
             self.ucs_class = None
+        elif isinstance(dom_node, basestring):
+            self.ucs_class = dom_node
         else:
             if dom_node.nodeType != dom.Node.ELEMENT_NODE:
                 raise TypeError('UcsmObjects can be created only from XML element nodes.')
@@ -538,6 +544,12 @@ class UcsmObject:
             return self.attributes[item]
         except KeyError:
             raise AttributeError('UcsmObject has no attribute \'%s\'' % item)
+
+    def __setattr__(self, key, value):
+        if key in UcsmObject.__slots__:
+            super(UcsmObject, self).__setattr__(key, value)
+        else:
+            self.attributes[key] = value
 
     def __repr__(self):
         repr = self.ucs_class

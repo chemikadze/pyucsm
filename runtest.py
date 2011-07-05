@@ -137,6 +137,10 @@ class TestUcsmConnection(MyBaseTest):
         self.assertEquals('policy', obj.adminPower)
         self.assertEquals('sys/chassis-1/blade-1', obj.dn)
         self.assertEquals('computeBlade', obj.ucs_class)
+        obj.attributes['this_is_shurely_not_in_dict'] = 42
+        self.assertEquals(42, obj.this_is_shurely_not_in_dict)
+        obj.this_is_also_not_in_dict = 84
+        self.assertEquals(84, obj.this_is_also_not_in_dict)
 
     def test_resolve_children(self):
         c = pyucsm.UcsmConnection(_host, 80)
@@ -288,6 +292,7 @@ class TestUcsmConnection(MyBaseTest):
                 self.assertEquals(old_aff, [])
             finally:
                 c.logout()
+
 
 if __name__ == '__main__':
     unittest.main()
