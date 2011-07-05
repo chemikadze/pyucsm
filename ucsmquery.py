@@ -42,6 +42,7 @@ def print_objects(objects, only_dn=False, hierarchy=False):
 def perform(host, login, password, command, args=list(), opts=dict(), port=80):
     client = UcsmConnection(host, port)
     try:
+        global quiet
         client.login(login, password)
         if command == 'configFindDnsByClassId':
             class_id = opts.get('classId')
@@ -58,17 +59,17 @@ def perform(host, login, password, command, args=list(), opts=dict(), port=80):
         elif command == 'configResolveDns':
             hierarchy = 'inHierarchical' in opts
             objects,unresolved = client.resolve_dns(args, hierarchy)
-            print_objects(objects, only_dn='only-dn' in opts, hierarchy=hierarchy)
+            print_objects(objects, only_dn=quiet, hierarchy=hierarchy)
         elif command == 'configResolveChildren':
             class_id = opts.get('classId', '')
             dn = opts.get('inDn', '')
             hierarchy = 'inHierarchical' in opts
             objects = client.resolve_children(class_id, dn, hierarchy)
-            print_objects(objects, only_dn='only-dn' in opts, hierarchy=hierarchy)
+            print_objects(objects, only_dn=quiet, hierarchy=hierarchy)
         elif command == 'configResolveClasses':
             hierarchy = 'inHierarchical' in opts
             objects = client.resolve_classes(args, hierarchy)
-            print_objects(objects, only_dn='only-dn' in opts, hierarchy=hierarchy)
+            print_objects(objects, only_dn=quiet, hierarchy=hierarchy)
         else:
             raise KeyError
     except KeyError:
@@ -81,13 +82,15 @@ def perform(host, login, password, command, args=list(), opts=dict(), port=80):
 if __name__ == '__main__':
     try:
         argv = sys.argv[1:]
-        opts, args = getopt.gnu_getopt(argv, 'l:p:P:d', ["classId=", "dn=", "inDn=", "only-dn", "inHierarchical"])
+        opts, args = getopt.gnu_getopt(argv, 'l:p:P:dq', ["classId=", "dn=", "inDn=", "inHierarchical"])
     except getopt.GetoptError:
         usage()
         exit()
     login = 'admin'
     password = 'nbv12345'
     comm_opts = {}
+    global quiet
+    quiet = True
     for opt,val in opts:
         if opt=='-l':
             login = val
@@ -98,6 +101,8 @@ if __name__ == '__main__':
             pyucsm._DEBUG = True
         elif opt[:2]=='--':
             comm_opts[opt[2:]] = val
+        elif opt=='-q':
+            quiet = True
     if len(args)>=2:
         port = 80
         host = args[0]
