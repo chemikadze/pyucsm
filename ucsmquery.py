@@ -90,7 +90,7 @@ if __name__ == '__main__':
     password = 'nbv12345'
     comm_opts = {}
     global quiet
-    quiet = True
+    quiet = False
     for opt,val in opts:
         if opt=='-l':
             login = val
