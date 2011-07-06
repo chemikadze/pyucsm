@@ -247,7 +247,7 @@ class UcsmConnection(object):
         if 'status' in config.attributes:
             oldattr = config.status
         config.status = status
-        res = self.conf_mo(config)
+        res = self.conf_mo(config, dn, hierarchy)
         if not oldattr is None:
             config.status = oldattr
         return res
@@ -268,7 +268,7 @@ class UcsmConnection(object):
         """Modifies or creates config. Special config object attribute 'status' is used to
         determines action. Possible values: ('created', 'deleted', 'modified')."""
         in_config_node = minidom.Element('inConfig')
-        in_config_node.appendChild(config.xml_node())
+        in_config_node.appendChild(config.xml_node(hierachy))
         data,conn = self._perform_complex_query('configConfMo',
                                                 data=in_config_node,
                                                 dn = dn,
@@ -277,7 +277,7 @@ class UcsmConnection(object):
         res = self._get_single_object_from_response(data)
         return res
 
-    def conf_mos(self, configs):
+    def conf_mos(self, configs, hierarchy=False):
         """Gets dictionary of dn:config as configs argument. Equivalent for several configConfMo requests.
         returns dirtionary of dn:canged_config. Special config object attribute 'status' is used to
         determines action. Possible values: ('created', 'deleted', 'modified').
@@ -286,7 +286,7 @@ class UcsmConnection(object):
         for k,c in configs.items():
             conf = minidom.Element('pair')
             conf.setAttribute('key', k)
-            conf.appendChild(c.xml_node())
+            conf.appendChild(c.xml_node(hierarchy))
             configs_xml.appendChild(conf)
         data,conn = self._perform_complex_query('configConfMos',
                                                 data=configs_xml)
@@ -583,13 +583,16 @@ class UcsmObject(object):
             repr = repr + '; ' + ' '.join('%s=%s'%(n,v) for n,v in self.attributes.items())
         return '<UcsmObject instance at %x with class %s>' % (id(self), repr)
 
-    def xml(self):
-        return node.toxml()
+    def xml(self, hierarchy=False):
+        return self.xml_node(hierarchy).toxml()
 
-    def xml_node(self):
+    def xml_node(self, hierarchy=False):
         node = minidom.Element(self.ucs_class)
         for n,v in self.attributes.items():
             node.setAttribute(n, str(v))
+        if hierarchy:
+            for child in self.children:
+                node.appendChild(child.xml_node())
         return node
 
 
