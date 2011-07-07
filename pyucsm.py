@@ -10,6 +10,7 @@ from xml.dom import minidom
 import xml.dom as dom
 from threading import Timer
 from pyexpat import ExpatError
+import os
 
 def _iterable(possibly_iterable):
     try:
@@ -83,6 +84,7 @@ class UcsmConnection(object):
         try:
             body = self._instantiate_simple_query('aaaLogin', inName=login, inPassword=password)
             reply_xml, conn = self._perform_xml_call(body)
+            self._check_is_error(reply_xml.firstChild)
             response_atom = reply_xml.firstChild
             self._get_cookie_from_xml(response_atom)
             self.version = response_atom.attributes["outVersion"].value
@@ -99,6 +101,7 @@ class UcsmConnection(object):
             cookie = self.__cookie
             body = self._instantiate_simple_query('aaaLogout', inCookie=cookie)
             reply_xml, conn = self._perform_xml_call(body)
+            self._check_is_error(reply_xml.firstChild)
             response_atom = reply_xml.firstChild
             if response_atom.attributes["response"].value =="yes":
                 self._check_is_error(response_atom)
@@ -118,6 +121,7 @@ class UcsmConnection(object):
             cookie = self.__cookie
             body = self._instantiate_simple_query('aaaRefresh', inName=login, inPassword=password, inCookie=cookie)
             reply_xml, conn = self._perform_xml_call(body)
+            self._check_is_error(reply_xml.firstChild)
             response_atom = reply_xml.firstChild
             self._get_cookie_from_xml(response_atom)
         except KeyError:
@@ -157,12 +161,15 @@ class UcsmConnection(object):
             raise UcsmFatalError('No outUnresolved section in server response!')
 
     def resolve_children(self, class_id='', dn='', hierarchy=False, filter=UcsmFilterOp()):
+        kwargs = {}
+        if class_id:
+            kwargs['classId'] = class_id
         data,conn = self._perform_query('configResolveChildren',
                                         filter = filter,
                                         cookie = self.__cookie,
-                                        classId = class_id,
                                         inDn = dn,
-                                        inHierarchical = hierarchy and "yes" or "no")
+                                        inHierarchical = hierarchy and "yes" or "no",
+                                        **kwargs)
         self._check_is_error(data.firstChild)
         return self._get_objects_from_response(data)
 
@@ -183,6 +190,7 @@ class UcsmConnection(object):
             classes_node.appendChild(childnode)
         data,conn = self._perform_complex_query('configResolveClasses',
                                                 data = classes_node,
+                                                cookie = self.__cookie,
                                                 inHierarchical = hierarchy and "yes" or "no")
         self._check_is_error(data.firstChild)
         return self._get_objects_from_response(data)
@@ -218,9 +226,9 @@ class UcsmConnection(object):
 
     def find_dns_by_class_id(self, class_id, filter=None):
         data,conn = self._perform_query('configFindDnsByClassId',
-                                                filter=filter,
-                                                cookie = self.__cookie,
-                                                classId = class_id)
+                                        filter=filter,
+                                        cookie = self.__cookie,
+                                        classId = class_id)
         self._check_is_error(data.firstChild)
         try:
             out_dns_node = data.getElementsByTagName('outDns')[0]
@@ -272,6 +280,7 @@ class UcsmConnection(object):
         data,conn = self._perform_complex_query('configConfMo',
                                                 data=in_config_node,
                                                 dn = dn,
+                                                cookie = self.__cookie,
                                                 inHierarchical = hierachy and "yes" or "no")
         self._check_is_error(data.firstChild)
         res = self._get_single_object_from_response(data)
@@ -289,6 +298,7 @@ class UcsmConnection(object):
             conf.appendChild(c.xml_node(hierarchy))
             configs_xml.appendChild(conf)
         data,conn = self._perform_complex_query('configConfMos',
+                                                cookie = self.__cookie,
                                                 data=configs_xml)
         self._check_is_error(data.firstChild)
         buf_res = self._get_objects_from_response(data)
@@ -316,6 +326,7 @@ class UcsmConnection(object):
             conf.appendChild(c.xml_node())
             configs_xml.appendChild(conf)
         data,conn = self._perform_complex_query('configEstimateImpact',
+                                                cookie = self.__cookie,
                                                 data=configs_xml)
         self._check_is_error(data.firstChild)
         try:
@@ -338,8 +349,20 @@ class UcsmConnection(object):
             dn_xml.setAttribute('value', dn)
             dns_xml.appendChild(dn_xml)
         data,conn = self._perform_complex_query('configConfMoGroup',
+                                                cookie = self.__cookie,
                                                 data=[dns_xml, config_xml],
                                                 inHierarchical = hierarchy and "yes" or "no")
+        self._check_is_error(data.firstChild)
+        return self._get_objects_from_response(data)
+
+    def instantiate_template(self, dn, target_org_dn='org-root', prefix='', number=1, hierarchy=False):
+        data,conn = self._perform_query('lsInstantiateNTemplate',
+                                        cookie = self.__cookie,
+                                        dn=dn,
+                                        inTargetOrg=target_org_dn,
+                                        inServerNamePrefixOrEmpty=prefix,
+                                        inNumberOf=number,
+                                        inHierarchical = hierarchy and "yes" or "no")
         self._check_is_error(data.firstChild)
         return self._get_objects_from_response(data)
 
@@ -557,13 +580,18 @@ class UcsmObject(object):
             self.children = []
             self.attributes = {}
             self.ucs_class = dom_node.nodeName.encode('utf8')
+            for attr,val in dom_node.attributes.items():
+                self.attributes[attr.encode('utf8')] = val.encode('utf8')
+            if parent is not None \
+                and'dn' not in self.attributes \
+                and 'rn' in self.attributes \
+                and 'dn' in parent.attributes:
+                self.dn = os.path.join(parent.dn, self.rn)
             if dom_node is not None:
                 for child_node in dom_node.childNodes:
                     if child_node.nodeType == dom.Node.ELEMENT_NODE:
                         child = UcsmObject(child_node, self)
                         self.children.append(child)
-            for attr,val in dom_node.attributes.items():
-                self.attributes[attr.encode('utf8')] = val.encode('utf8')
 
     def __getattr__(self, item):
         try:

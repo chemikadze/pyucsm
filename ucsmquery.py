@@ -32,11 +32,11 @@ def print_objects(objects, only_dn=False, hierarchy=False):
     else:
         newline = False
         for obj in objects:
+            if newline:
+                print
             print obj.pretty_str()
             if hierarchy:
                 print_objects(obj.children, only_dn, hierarchy)
-            if newline:
-                print
             newline = True
 
 def perform(host, login, password, command, args=list(), opts=dict(), port=80):
