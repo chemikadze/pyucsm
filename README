@@ -2,3 +2,49 @@ Python library for providing Cisco UCSM XMP API protocol support.
 
 WARNING: some tests affects to data, those tests are recommended to perform only on UCSPE. To turn
 them off you must set flag SIMULATOR from testucsmparams.py to False.
+
+Implement status:
+
+aaaChangeSelfPassword                
+configConfMoGroup                V
+eventSubscribe                        
+aaaCheckComputeAuthToken        
+configConfMos                    V
+faultAckFault                        
+aaaCheckComputeExtAccess        
+configEstimateImpact             V
+faultAckFaults                        
+aaaGetNComputeAuthTokenByDn        
+configFindDependencies                
+faultResolveFault                
+aaaKeepAlive                        
+configFindDnsByClassId           V
+lsClone                                
+aaaLogin                         V
+configMoChangeEvent                
+lsInstantiateNNamedTemplate        
+aaaLogout                        V
+configResolveChildren            V
+lsInstantiateNTemplate           V
+aaaRefresh                       V
+configResolveClass               V
+lsInstantiateTemplate            V
+aaaTokenLogin                        
+configResolveClasses             V
+lsResolveTemplates                
+aaaTokenRefresh                        
+configResolveDn                  V
+lsTemplatise                        
+configCheckConformance                
+configResolveDns                 V
+orgResolveElements                
+configCheckFirmwareUpdatable        
+configResolveParent              V
+poolResolveInScope                
+configConfFiltered                
+configScope                        
+statsClearInterval                
+configConfMo                     V
+eventSendHeartbeat                
+statsResolveThresholdPolicy        
+
