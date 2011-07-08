@@ -22,7 +22,7 @@ configFindDnsByClassId           V
 lsClone                                
 aaaLogin                         V
 configMoChangeEvent                
-lsInstantiateNNamedTemplate        
+lsInstantiateNNamedTemplate      V
 aaaLogout                        V
 configResolveChildren            V
 lsInstantiateNTemplate           V

@@ -95,6 +95,10 @@ class UcsmConnection(object):
         except KeyError, UcsmError:
             raise UcsmFatalError("Wrong reply syntax.")
 
+    def set_auth(self, cookie, login=None, password=None):
+        self.__cookie = cookie
+        self.__login = login
+        self.__password = password
 
     def logout(self):
         try:
@@ -355,7 +359,7 @@ class UcsmConnection(object):
         self._check_is_error(data.firstChild)
         return self._get_objects_from_response(data)
 
-    def instantiate_template(self, dn, target_org_dn='org-root', prefix='', number=1, hierarchy=False):
+    def instantiate_template(self, dn, target_org_dn='org-root', prefix='', number=1, hierarchy=False): # TODO: uncovered
         data,conn = self._perform_query('lsInstantiateNTemplate',
                                         cookie = self.__cookie,
                                         dn=dn,
@@ -363,6 +367,21 @@ class UcsmConnection(object):
                                         inServerNamePrefixOrEmpty=prefix,
                                         inNumberOf=number,
                                         inHierarchical = hierarchy and "yes" or "no")
+        self._check_is_error(data.firstChild)
+        return self._get_objects_from_response(data)
+
+    def instantiate_template_named(self, dn, name_set, target_org_dn='org-root', hierarchy=True): # TODO: uncovered
+        inNames = minidom.Element('inNameSet')
+        for name in name_set:
+            name_elem = minidom.Element('dn')
+            name_elem.setAttribute('value', name)
+            inNames.appendChild(name_elem)
+        data,conn = self._perform_complex_query('lsInstantiateNNamedTemplate',
+                                                inNames,
+                                                dn=dn,
+                                                cookie = self.__cookie,
+                                                inTargetOrg=target_org_dn,
+                                                inHierarchical = hierarchy and "yes" or "no")
         self._check_is_error(data.firstChild)
         return self._get_objects_from_response(data)
 
