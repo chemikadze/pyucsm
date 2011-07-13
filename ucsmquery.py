@@ -98,7 +98,7 @@ if __name__ == '__main__':
             password = val
         elif opt=='-d':
             import pyucsm
-            pyucsm._DEBUG = True
+            pyucsm.DEBUG = True
         elif opt[:2]=='--':
             comm_opts[opt[2:]] = val
         elif opt=='-q':

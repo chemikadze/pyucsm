@@ -1,16 +1,17 @@
 #!/usr/bin/python
-from pyexpat import ExpatError
-
-__author__ = 'nsokolov'
-
-_DEBUG = False
 
 import httplib
 from xml.dom import minidom
 import xml.dom as dom
 from threading import Timer
-from pyexpat import ExpatError
 import os
+
+
+DEBUG = False
+
+def set_debug(enable):
+    global DEBUG
+    DEBUG = enable
 
 def _iterable(possibly_iterable):
     try:
@@ -165,6 +166,8 @@ class UcsmConnection(object):
             raise UcsmFatalError('No outUnresolved section in server response!')
 
     def resolve_children(self, class_id='', dn='', hierarchy=False, filter=UcsmFilterOp()):
+        """Returns list of objects.
+        """
         kwargs = {}
         if class_id:
             kwargs['classId'] = class_id
@@ -264,7 +267,15 @@ class UcsmConnection(object):
             config.status = oldattr
         return res
 
-    def create_object(self, conf, hierarchy=False):
+    def create_object(self, conf, root=None, rn=None, dn=None, hierarchy=False):
+        if root is not None:
+            if rn is not None:
+                conf.rn = rn
+                conf.dn = root+'/'+rn
+            elif 'rn' in conf.attributes:
+                conf.dn = root+'/'+conf.rn
+        elif dn is not None:
+            conf.rn = rn
         return self._conf_mo_status(conf, 'created', hierarchy=hierarchy)
 
     def delete_object(self, conf):
@@ -359,7 +370,22 @@ class UcsmConnection(object):
         self._check_is_error(data.firstChild)
         return self._get_objects_from_response(data)
 
-    def instantiate_template(self, dn, target_org_dn='org-root', prefix='', number=1, hierarchy=False): # TODO: uncovered
+    def instantiate_template(self, dn, name, target_org_dn='org-root', hierarchy=False): # TODO: uncovered
+        """Returns created profile."""
+        data,conn = self._perform_query('lsInstantiateTemplate',
+                                        cookie = self.__cookie,
+                                        dn=dn,
+                                        inTargetOrg=target_org_dn,
+                                        inServerName=name,
+                                        inHierarchical = hierarchy and "yes" or "no")
+        self._check_is_error(data.firstChild)
+        res = self._get_objects_from_response(data)
+        if len(res):
+            return res[0]
+        else:
+            return None
+
+    def instantiate_n_template(self, dn, target_org_dn='org-root', prefix='', number=1, hierarchy=False): # TODO: uncovered
         data,conn = self._perform_query('lsInstantiateNTemplate',
                                         cookie = self.__cookie,
                                         dn=dn,
@@ -370,7 +396,7 @@ class UcsmConnection(object):
         self._check_is_error(data.firstChild)
         return self._get_objects_from_response(data)
 
-    def instantiate_template_named(self, dn, name_set, target_org_dn='org-root', hierarchy=True): # TODO: uncovered
+    def instantiate_n_template_named(self, dn, name_set, target_org_dn='org-root', hierarchy=True): # TODO: uncovered
         inNames = minidom.Element('inNameSet')
         for name in name_set:
             name_elem = minidom.Element('dn')
@@ -401,13 +427,16 @@ class UcsmConnection(object):
     def _perform_xml_call(self, request_data, headers=None):
         conn = self._create_connection()
         body = request_data
-        if _DEBUG:
-            print ">> %s" % body
+        global DEBUG
+        if DEBUG:
+            import sys
+            print >> sys.stderr, ">> %s" % body
         conn.request("POST", self.__ENDPOINT, body)
         reply = conn.getresponse()
         reply_data = reply.read()
-        if _DEBUG:
-            print "<< %s" % reply_data
+        if DEBUG:
+            import sys
+            print >> sys.stderr, "<< %s" % reply_data
         try:
             reply_xml = minidom.parseString(reply_data)
         except:
@@ -583,7 +612,7 @@ class UcsmComposeFilter(UcsmFilterToken):
 
 class UcsmObject(object):
     __slots__ = ['__init__', '__getattr__', '__setattr__', '__repr__', 'xml', 'xml_node', 'pretty_xml',
-                 'children', 'attributes', 'parent', 'ucs_class']
+                 'children', 'attributes', 'parent', 'ucs_class', 'find_children']
 
     def __init__(self, dom_node=None, parent=None):
         self.children = []
@@ -593,6 +622,8 @@ class UcsmObject(object):
             self.ucs_class = None
         elif isinstance(dom_node, basestring):
             self.ucs_class = dom_node
+        elif isinstance(dom_node, UcsmObject):
+            self._fill_copy(dom_node)
         else:
             if dom_node.nodeType != dom.Node.ELEMENT_NODE:
                 raise TypeError('UcsmObjects can be created only from XML element nodes.')
@@ -611,6 +642,17 @@ class UcsmObject(object):
                     if child_node.nodeType == dom.Node.ELEMENT_NODE:
                         child = UcsmObject(child_node, self)
                         self.children.append(child)
+
+    def copy(self, parent=None):
+        cpy = UcsmObject(str(self.ucs_class), parent=parent)
+        cpy._fill_copy(self)
+        return cpy
+
+    def _fill_copy(self, src):
+        for k,v in src.attributes.items():
+            setattr(self, k, type(v)(v))
+        for child in src.children:
+            self.children.append(child.copy(self))
 
     def __getattr__(self, item):
         try:
@@ -642,9 +684,16 @@ class UcsmObject(object):
                 node.appendChild(child.xml_node())
         return node
 
-
     def pretty_str(self):
         str = self.ucs_class
         for name,val in self.attributes.items():
             str += '\n%s: %s' % (name,val)
         return str
+
+    def find_children(self, cls=None):
+        res = []
+        res.extend(self.children)
+        if cls is not None:
+            pres = [child for child in res if child.ucs_class==cls]
+            res = pres
+        return res

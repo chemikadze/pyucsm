@@ -11,7 +11,7 @@ _host = testucsmparams.HOST
 _login = testucsmparams.LOGIN
 _password = testucsmparams.PASSWORD
 
-pyucsm._DEBUG = True
+pyucsm.DEBUG = True
 
 class MyBaseTest(unittest.TestCase):
     def assertXmlEquals(self, str1, str2):
@@ -141,6 +141,18 @@ class TestUcsmConnection(MyBaseTest):
         self.assertEquals(42, obj.this_is_shurely_not_in_dict)
         obj.this_is_also_not_in_dict = 84
         self.assertEquals(84, obj.this_is_also_not_in_dict)
+        copy = obj.copy()
+        self.assertEquals(len(obj.attributes), len(copy.attributes))
+        self.assertEquals(len(obj.children), len(obj.children))
+        obj.ucs_class += 'appended'
+        self.assertNotEquals(obj.ucs_class, copy.ucs_class)
+
+    def test_ucsm_object_hierarchy(self):
+        obj = pyucsm.UcsmObject('parentClass')
+        obj.children.append(pyucsm.UcsmObject('childClass1'))
+        obj.children.append(pyucsm.UcsmObject('childClass2'))
+        self.assertEquals(1, len(obj.find_children('childClass1')))
+        self.assertEquals(1, len(obj.find_children('childClass2')))
 
     def test_resolve_children(self):
         c = pyucsm.UcsmConnection(_host, 80)
