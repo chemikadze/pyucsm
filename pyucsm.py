@@ -180,6 +180,17 @@ class UcsmConnection(object):
         self._check_is_error(data.firstChild)
         return self._get_objects_from_response(data)
 
+    def scope(self, class_id, dn, filter=UcsmFilterOp(), hierarchy=False, recursive=False): # TODO: uncovered
+        data,conn = self._perform_query('configScope',
+                                   filter = filter,
+                                   cookie = self.__cookie,
+                                   dn = dn,
+                                   inClass = class_id,
+                                   inRecursive = recursive and "yes" or "no",
+                                   inHierarchical = hierarchy and "yes" or "no")
+        self._check_is_error(data.firstChild)
+        return self._get_objects_from_response(data)
+
     def resolve_class(self, class_id, filter=UcsmFilterOp(), hierarchy=False):
         data,conn = self._perform_query('configResolveClass',
                                    filter = filter,
