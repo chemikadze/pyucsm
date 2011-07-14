@@ -28,6 +28,7 @@ def print_objects(objects, only_dn=False, hierarchy=False):
             except AttributeError:
                 print '%s object has no DN' % obj.ucs_class
             if hierarchy:
+                print
                 print_objects(obj.children, only_dn, hierarchy)
     else:
         newline = False
@@ -36,6 +37,8 @@ def print_objects(objects, only_dn=False, hierarchy=False):
                 print
             print obj.pretty_str()
             if hierarchy:
+                if len(obj.children):
+                    print
                 print_objects(obj.children, only_dn, hierarchy)
             newline = True
 
