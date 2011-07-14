@@ -623,7 +623,7 @@ class UcsmComposeFilter(UcsmFilterToken):
 
 class UcsmObject(object):
     __slots__ = ['__init__', '__getattr__', '__setattr__', '__repr__', 'xml', 'xml_node', 'pretty_xml',
-                 'children', 'attributes', 'parent', 'ucs_class', 'find_children']
+                 'children', 'attributes', 'parent', 'ucs_class', 'find_children', 'set_creation_status']
 
     def __init__(self, dom_node=None, parent=None):
         self.children = []
@@ -692,7 +692,7 @@ class UcsmObject(object):
             node.setAttribute(n, str(v))
         if hierarchy:
             for child in self.children:
-                node.appendChild(child.xml_node())
+                node.appendChild(child.xml_node(True))
         return node
 
     def pretty_str(self):
@@ -708,3 +708,8 @@ class UcsmObject(object):
             pres = [child for child in res if child.ucs_class==cls]
             res = pres
         return res
+
+    def set_creation_status(self, status):
+        self.attributes['status'] = status
+        for c in self.children:
+            c.set_creation_status(status)
