@@ -270,23 +270,30 @@ class UcsmConnection(object):
         """Side-effect eraser.
         """
         oldattr = None
-        if 'status' in config.attributes:
+        if 'status' in config.attributes and status not in config.status:
             oldattr = config.status
-        config.status = status
+            config.status = status
         res = self.conf_mo(config, dn, hierarchy)
-        if not oldattr is None:
+        if oldattr is not None:
             config.status = oldattr
         return res
 
-    def create_object(self, conf, root=None, rn=None, dn=None, hierarchy=False):
-        if root is not None:
+    def create_object(self, conf, root=None, rn=None, dn=None, hierarchy=False): # TODO: uncovered
+        """When creates, overrides only not given attributes rn, dn, status.
+        Priorities:
+        - dn
+        - root + rn
+        - root + conf.rn
+        - conf.dn
+        """
+        if dn is not None:
+            conf.dn = dn
+        elif root is not None:
             if rn is not None:
+                conf.dn = os.path.join(root, rn)
                 conf.rn = rn
-                conf.dn = root+'/'+rn
             elif 'rn' in conf.attributes:
-                conf.dn = root+'/'+conf.rn
-        elif dn is not None:
-            conf.rn = rn
+                conf.dn = os.path.join(root, conf.rn)
         return self._conf_mo_status(conf, 'created', hierarchy=hierarchy)
 
     def delete_object(self, conf):
