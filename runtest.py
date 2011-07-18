@@ -50,10 +50,17 @@ class TestUcsmConnection(MyBaseTest):
             with self.assertRaises(pyucsm.UcsmResponseError):
                 c.login(_login, 'this is wrong password')
                 c.logout()
+            with self.assertRaises(pyucsm.UcsmError):
+                c.login(_login, 'this is wrong password')
+                c.logout()
+
 
     def test_connection_404(self):
         c = pyucsm.UcsmConnection('example.com', 80)
         with self.assertRaises(pyucsm.UcsmFatalError):
+            c.login(_login, 'this is wrong password')
+            c.logout()
+        with self.assertRaises(pyucsm.UcsmError):
             c.login(_login, 'this is wrong password')
             c.logout()
 
@@ -305,6 +312,20 @@ class TestUcsmConnection(MyBaseTest):
             finally:
                 c.logout()
 
+    def test_scope(self):
+        c = pyucsm.UcsmConnection(_host, 80)
+        if testucsmparams.SIMULATOR:
+            try:
+                c.login(_login, _password)
+                res = c.scope('computeBlade', 'sys', recursive=True)
+                self.assertNotEquals(len(res), 0)
+                self.assertEquals(len(res[0].children), 0)
+                res = c.scope('computeBlade', 'sys', recursive=False)
+                self.assertEquals(len(res), 0)
+                res = c.scope('computeBlade', 'sys', recursive=True, hierarchy=True)
+                self.assertNotEquals(res[0].children, 0)
+            finally:
+                c.logout()
 
 if __name__ == '__main__':
     unittest.main()
