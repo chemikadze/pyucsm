@@ -1,6 +1,7 @@
 #!/usr/bin/python
 
 import httplib
+import socket
 from xml.dom import minidom
 import xml.dom as dom
 from threading import Timer
@@ -35,7 +36,7 @@ class UcsmTypeMismatchError(UcsmError):
     """
     pass
 
-class UcsmResponseError(Exception):
+class UcsmResponseError(UcsmError):
     """Error returned by UCSM server.
     """
     def __init__(self, code, text=""):
@@ -449,9 +450,12 @@ class UcsmConnection(object):
         if DEBUG:
             import sys
             print >> sys.stderr, ">> %s" % body
-        conn.request("POST", self.__ENDPOINT, body)
-        reply = conn.getresponse()
-        reply_data = reply.read()
+        try:
+            conn.request("POST", self.__ENDPOINT, body)
+            reply = conn.getresponse()
+            reply_data = reply.read()
+        except socket.error, e:
+            raise UcsmFatalError('Error during connecting: %s' % e)
         if DEBUG:
             import sys
             print >> sys.stderr, "<< %s" % reply_data
