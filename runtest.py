@@ -268,7 +268,8 @@ class TestUcsmConnection(MyBaseTest):
                 src.ucs_class = 'aaaLdapEp'
                 src.attributes['timeout'] = random.randint(0, 60)
                 res = c.conf_mos({'sys/ldap-ext':src})
-                print res, src
+                import sys
+                print >> sys.stderr, res, src
                 self.assertEquals(int(res['sys/ldap-ext'].attributes['timeout']), src.attributes['timeout'])
             finally:
                 c.logout()
@@ -314,16 +315,60 @@ class TestUcsmConnection(MyBaseTest):
 
     def test_scope(self):
         c = pyucsm.UcsmConnection(_host, 80)
+        try:
+            c.login(_login, _password)
+            res = c.scope('computeBlade', 'sys', recursive=True)
+            self.assertNotEquals(len(res), 0)
+            self.assertEquals(len(res[0].children), 0)
+            #res = c.scope('computeBlade', 'sys', recursive=False)
+            #self.assertEquals(len(res), 0) # TODO: why without recursive it behaves recursive?
+            res = c.scope('computeBlade', 'sys', recursive=True, hierarchy=True)
+            self.assertNotEquals(len(res[0].children), 0)
+        finally:
+            c.logout()
+
+    def test_config_mo_wrappers(self):
+        c = pyucsm.UcsmConnection(_host, 80)
         if testucsmparams.SIMULATOR:
             try:
                 c.login(_login, _password)
-                res = c.scope('computeBlade', 'sys', recursive=True)
-                self.assertNotEquals(len(res), 0)
-                self.assertEquals(len(res[0].children), 0)
-                #res = c.scope('computeBlade', 'sys', recursive=False)
-                #self.assertEquals(len(res), 0) # TODO: why without recursive it behaves recursive?
-                res = c.scope('computeBlade', 'sys', recursive=True, hierarchy=True)
-                self.assertNotEquals(len(res[0].children), 0)
+
+                find_ = c.resolve_dn('org-root/org-Test1')
+                if find_:
+                    c.delete_object(find_)
+
+                obj1 = pyucsm.UcsmObject('orgOrg')
+                obj1.name = 'Test1'
+                obj1.rn = 'wrongrn'
+                t1 = c.create_object(obj1, root='org-root', rn='org-Test1')
+                self.assertIsNotNone(obj1)
+
+                obj2 = pyucsm.UcsmObject('orgOrg')
+                obj2.name = 'Test2'
+                obj2.rn = 'org-Test2'
+                t2 = c.create_object(obj2, root='org-root/org-Test1')
+                self.assertIsNotNone(obj2)
+
+                obj3 = pyucsm.UcsmObject('orgOrg')
+                obj3.name = 'Test3'
+                t3 = c.create_object(obj3, dn='org-root/org-Test1/org-Test2/org-Test3')
+                self.assertIsNotNone(obj3)
+
+                obj4 = pyucsm.UcsmObject('orgOrg')
+                obj4.name = 'Test4'
+                obj4.dn = 'org-root/org-Test1/org-Test2/org-Test3/org-Test4'
+                t4 = c.create_object(obj4)
+                self.assertIsNotNone(obj4)
+
+                test_const = 'Lorum ipsum!'
+                obj1.descr = test_const
+                obj1_changed = c.update_object(obj1)
+                self.assertEquals(test_const, obj1_changed.descr)
+
+                c.delete_object(c.resolve_dn('org-root/org-Test1'))
+
+                find_2 = c.resolve_dn('org-root/org-Test1')
+                self.assertIsNone(find_2)
             finally:
                 c.logout()
 

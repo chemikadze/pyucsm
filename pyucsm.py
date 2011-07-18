@@ -181,7 +181,7 @@ class UcsmConnection(object):
         self._check_is_error(data.firstChild)
         return self._get_objects_from_response(data)
 
-    def scope(self, class_id, dn, filter=UcsmFilterOp(), hierarchy=False, recursive=False): # TODO: uncovered
+    def scope(self, class_id, dn, filter=UcsmFilterOp(), hierarchy=False, recursive=False): # TODO: unexpected behavior with recursive option
         data,conn = self._perform_query('configScope',
                                    filter = filter,
                                    cookie = self.__cookie,
@@ -279,7 +279,7 @@ class UcsmConnection(object):
             config.status = oldattr
         return res
 
-    def create_object(self, conf, root=None, rn=None, dn=None, hierarchy=False): # TODO: uncovered
+    def create_object(self, conf, root=None, rn=None, dn=None, hierarchy=False):
         """When creates, overrides only not given attributes rn, dn, status.
         Priorities:
         - dn
