@@ -70,6 +70,11 @@ class UcsmConnection(object):
     __ENDPOINT = '/nuova'
 
     def __init__(self, host, port=None, secure=False, *args, **kwargs):
+        self.__cookie = None
+        self.__login = None
+        self.__password = None
+        self.version = None
+        self.session_id = None
         if secure:
             self._create_connection = lambda: httplib.HTTPSConnection(host, port, *args, **kwargs)
         else:
@@ -112,11 +117,16 @@ class UcsmConnection(object):
             if response_atom.attributes["response"].value =="yes":
                 self._check_is_error(response_atom)
                 status = response_atom.attributes["outStatus"].value
+                self.session_id = None
+                self.version = None
                 return status
             else:
                 raise UcsmFatalError()
         except KeyError, UcsmError:
             raise UcsmFatalError("Wrong reply syntax.")
+
+    def is_logged_in(self):
+        return self.__cookie is not None
 
     def refresh(self):
         """Performs authorisation and retrieving cookie from server. Cookie refresh will be performed automatically.
