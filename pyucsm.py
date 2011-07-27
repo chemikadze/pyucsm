@@ -7,6 +7,7 @@ import xml.dom as dom
 from threading import Timer
 import os
 
+import xml.etree.ElementTree as ElementTree
 
 DEBUG = False
 
@@ -440,6 +441,7 @@ class UcsmConnection(object):
         self._check_is_error(data.firstChild)
         return self._get_objects_from_response(data)
 
+
     def _refresh(self):
         self.__cookie = self.refresh()
         self.__refresh_timer = self._recreate_refresh_timer()
@@ -474,6 +476,31 @@ class UcsmConnection(object):
         except:
             raise UcsmFatalError("Error during XML parsing.")
         return reply_xml, conn
+
+    def _iter_events(self):
+        request_data = self._instantiate_complex_query('eventSubscribe',
+                                                       child_data=UcsmFilterOp().final_xml_node(), cookie=self.__cookie)
+        conn = self._create_connection()
+        body = request_data
+        global DEBUG
+        if DEBUG:
+            import sys
+            print >> sys.stderr, ">> %s" % body
+        try:
+            conn.request("POST", self.__ENDPOINT, body)
+            reply = conn.getresponse()
+            for event, element in ElementTree.iterparse(reply):
+                if DEBUG:
+                    import sys
+                    #print >> sys.stderr, "<< %s" % reply_data
+                try:
+                    reply_data = ElementTree.tostring(element)
+                    reply_xml = minidom.parseString(reply_data)
+                    yield reply_xml, conn
+                except:
+                    raise UcsmFatalError("Error during XML parsing.")
+        except socket.error, e:
+            raise UcsmFatalError('Error during connecting: %s' % e)
 
     def _get_cookie_from_xml(self, response_atom):
         if response_atom.attributes["response"].value=="yes":
