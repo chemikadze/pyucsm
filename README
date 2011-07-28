@@ -7,7 +7,7 @@ Implement status:
 
 aaaChangeSelfPassword                
 configConfMoGroup                V
-eventSubscribe                        
+eventSubscribe                   V
 aaaCheckComputeAuthToken        
 configConfMos                    V
 faultAckFault                        
