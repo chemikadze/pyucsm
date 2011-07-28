@@ -45,6 +45,24 @@ class UcsmResponseError(UcsmError):
         self.text = text
         super(UcsmResponseError, self).__init__(text)
 
+class ReadlineAdapter(object):
+    """Wrapper, implements readline function for any file object.
+    """
+
+    def __init__(self, io):
+        self.__io = io
+
+    def __getattr__(self, item):
+        return getattr(self.__io, item)
+
+    def readline(self):
+        buffer = ''
+        while True:
+            c = self.__io.read(1)
+            if c is not None and c=='\n':
+                return buffer
+            buffer += c
+
 
 class UcsmFilterOp(object):
     def xml(self):
@@ -477,7 +495,20 @@ class UcsmConnection(object):
             raise UcsmFatalError("Error during XML parsing.")
         return reply_xml, conn
 
-    def _iter_events(self):
+    def iter_events(self):
+        """Starts listen events, iterating through them. Yields event id and configuraion.
+        """
+        for root_xml, conn in self._iter_xml_events():
+            for event_xml in root_xml.getElementsByTagName('configMoChangeEvent'):
+                event_id = int(event_xml.getAttribute('inEid'))
+                configs = event_xml.getElementsByTagName('inConfig')
+                if configs:
+                    xml_childs = [child for child in configs[0].childNodes if child.nodeType == dom.Node.ELEMENT_NODE]
+                    childs = map(lambda c: UcsmObject(c), xml_childs)
+                    for child in childs:
+                        yield event_id, child
+
+    def _iter_xml_events(self):
         request_data = self._instantiate_complex_query('eventSubscribe',
                                                        child_data=UcsmFilterOp().final_xml_node(), cookie=self.__cookie)
         conn = self._create_connection()
@@ -489,18 +520,25 @@ class UcsmConnection(object):
         try:
             conn.request("POST", self.__ENDPOINT, body)
             reply = conn.getresponse()
-            for event, element in ElementTree.iterparse(reply):
+            while True:
+                reply_data = self._read_event_from_reply(reply)
                 if DEBUG:
                     import sys
-                    #print >> sys.stderr, "<< %s" % reply_data
+                    print >> sys.stderr, "<<e %s" % reply_data
                 try:
-                    reply_data = ElementTree.tostring(element)
                     reply_xml = minidom.parseString(reply_data)
                     yield reply_xml, conn
                 except:
                     raise UcsmFatalError("Error during XML parsing.")
         except socket.error, e:
             raise UcsmFatalError('Error during connecting: %s' % e)
+        except EOFError:
+            return
+
+    def _read_event_from_reply(self, reply):
+        adapter = ReadlineAdapter(reply)
+        length = int(adapter.readline())
+        return adapter.read(length)
 
     def _get_cookie_from_xml(self, response_atom):
         if response_atom.attributes["response"].value=="yes":
