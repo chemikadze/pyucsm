@@ -92,6 +92,8 @@ class UcsmConnection(object):
         self.__cookie = None
         self.__login = None
         self.__password = None
+        self.host = host
+        self.port = int(port) or 80
         self.version = None
         self.session_id = None
         if secure:
