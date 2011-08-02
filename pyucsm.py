@@ -183,6 +183,21 @@ class UcsmConnection(object):
         except KeyError, IndexError:
             raise UcsmFatalError('No outConfig section in server response!')
 
+    def _get_pairs_from_response(self, xml_data):
+        buf_res = self._get_objects_from_response(xml_data)
+        res = {}
+        try:
+            for pair in buf_res:
+                if pair.ucs_class == 'pair':
+                    res[pair.key] = pair.children[0]
+                else:
+                    raise UcsmFatalError('Wrong reply: non-pair object in outConfigs section')
+            return res
+        except IndexError:
+            raise UcsmFatalError('Wrong reply: recieved pair does not contains value')
+        except AttributeError:
+            raise UcsmFatalError('Wrong reply: recieved pair does not have key')
+
     def _get_child_nodes_as_children(self, root):
         xml_childs = [child for child in root.childNodes if child.nodeType == dom.Node.ELEMENT_NODE]
         return map(lambda c: UcsmObject(c), xml_childs)
@@ -366,19 +381,7 @@ class UcsmConnection(object):
                                                 cookie = self.__cookie,
                                                 data=configs_xml)
         self._check_is_error(data.firstChild)
-        buf_res = self._get_objects_from_response(data)
-        res = {}
-        try:
-            for pair in buf_res:
-                if pair.ucs_class == 'pair':
-                    res[pair.key] = pair.children[0]
-                else:
-                    raise UcsmFatalError('Wrong reply: non-pair object in outConfigs section')
-            return res
-        except IndexError:
-            raise UcsmFatalError('Wrong reply: recieved pair does not contains value')
-        except AttributeError:
-            raise UcsmFatalError('Wrong reply: recieved pair does not have key')
+        return self._get_pairs_from_response(data)
 
     def estimate_impact(self, configs):
         """Calculates impact of changing config on server. Returns four lists: ackables, old ackables,
@@ -461,6 +464,16 @@ class UcsmConnection(object):
         self._check_is_error(data.firstChild)
         return self._get_objects_from_response(data)
 
+    def resolve_elements(self, dn, class_id, single_level=False, hierarchy=False, filter=UcsmFilterOp()):
+        data,conn = self._perform_query('orgResolveElements',
+                                   filter = filter,
+                                   dn=dn,
+                                   cookie = self.__cookie,
+                                   inClass = class_id,
+                                   inSingleLevel =  single_level and "yes" or "no",
+                                   inHierarchical = hierarchy and "yes" or "no")
+        self._check_is_error(data.firstChild)
+        return self._get_pairs_from_response(data)
 
     def _refresh(self):
         self.__cookie = self.refresh()

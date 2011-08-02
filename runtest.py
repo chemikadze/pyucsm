@@ -372,5 +372,15 @@ class TestUcsmConnection(MyBaseTest):
             finally:
                 c.logout()
 
+    def test_resolve_elements(self):
+        c = pyucsm.UcsmConnection(_host, 80)
+        try:
+            c.login(_login, _password)
+
+            found = c.resolve_elements('org-root', 'lsbootPolicy')
+            self.assertTrue(bool(sum(o.ucs_class == 'lsbootPolicy' for o in found.values())))
+        finally:
+            c.logout()
+
 if __name__ == '__main__':
     unittest.main()

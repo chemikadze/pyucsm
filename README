@@ -37,7 +37,7 @@ configResolveDn                  V
 lsTemplatise                        
 configCheckConformance                
 configResolveDns                 V
-orgResolveElements                
+orgResolveElements               V
 configCheckFirmwareUpdatable        
 configResolveParent              V
 poolResolveInScope                
