@@ -95,6 +95,7 @@ class UcsmConnection(object):
         self.__cookie = None
         self.__login = None
         self.__password = None
+        self.__refresh_timer = None
         self.host = host
         self.port = int(port) or 80
         self.version = None
@@ -135,6 +136,8 @@ class UcsmConnection(object):
 
     def logout(self):
         try:
+            if self.__refresh_timer:
+                self.__refresh_timer.cancel()
             cookie = self.__cookie
             body = self._instantiate_simple_query('aaaLogout', inCookie=cookie)
             reply_xml, conn = self._perform_xml_call(body)
@@ -482,9 +485,13 @@ class UcsmConnection(object):
 
     def _refresh(self):
         LOG.debug('Refreshing cookie...')
-        self.refresh()
-        self.__refresh_timer = self._recreate_refresh_timer()
-        self.__refresh_timer.start()
+        try:
+            self.refresh()
+        except Exception:
+            LOG.warning('Exception during cookie refresh')
+        else:
+            self.__refresh_timer = self._recreate_refresh_timer()
+            self.__refresh_timer.start()
 
     def _start_autorefresh(self):
         self.__refresh_timer = self._recreate_refresh_timer()
