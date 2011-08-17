@@ -1,19 +1,22 @@
 #!/usr/bin/python
 
 import httplib
+import logging
+import time
+import os
 import socket
 from xml.dom import minidom
 import xml.dom as dom
 from threading import Timer
-import os
-
-import xml.etree.ElementTree as ElementTree
 
 DEBUG = False
+
+LOG = logging.getLogger('pyucsm')
 
 def set_debug(enable):
     global DEBUG
     DEBUG = enable
+    LOG.setLevel(enable and logging.DEBUG or logging.WARNING)
 
 def _iterable(possibly_iterable):
     try:
@@ -101,7 +104,7 @@ class UcsmConnection(object):
         else:
             self._create_connection = lambda: httplib.HTTPConnection(host, port, *args, **kwargs)
 
-    def login(self, login, password):
+    def login(self, login, password, cookie_timeout=60*10):
         """Performs authorisation and retrieving cookie from server. Cookie refresh will be performed automatically.
         """
         self.__cookie = None
@@ -119,8 +122,10 @@ class UcsmConnection(object):
             self.session_id = response_atom.attributes["outSessionId"].value
             self.__login = login
             self.__password = password
+            self.cookie_timeout = cookie_timeout
+            self._start_autorefresh()
             return self.__cookie
-        except KeyError, UcsmError:
+        except (KeyError, UcsmError):
             raise UcsmFatalError("Wrong reply syntax.")
 
     def set_auth(self, cookie, login=None, password=None):
@@ -143,7 +148,7 @@ class UcsmConnection(object):
                 return status
             else:
                 raise UcsmFatalError()
-        except KeyError, UcsmError:
+        except (KeyError, UcsmError):
             raise UcsmFatalError("Wrong reply syntax.")
 
     def is_logged_in(self):
@@ -160,7 +165,7 @@ class UcsmConnection(object):
             reply_xml, conn = self._perform_xml_call(body)
             self._check_is_error(reply_xml.firstChild)
             response_atom = reply_xml.firstChild
-            self._get_cookie_from_xml(response_atom)
+            return self._get_cookie_from_xml(response_atom)
         except KeyError:
             raise UcsmFatalError("Wrong reply syntax.")
 
@@ -173,14 +178,14 @@ class UcsmConnection(object):
                 return childs[0]
             else:
                 return None
-        except KeyError, IndexError:
+        except (KeyError, IndexError):
             raise UcsmFatalError('No outConfig section in server response!')
 
     def _get_objects_from_response(self, data):
         try:
             out_config = data.getElementsByTagName('outConfigs')[0]
             return self._get_child_nodes_as_children(out_config)
-        except KeyError, IndexError:
+        except (KeyError, IndexError):
             raise UcsmFatalError('No outConfig section in server response!')
 
     def _get_pairs_from_response(self, xml_data):
@@ -209,7 +214,7 @@ class UcsmConnection(object):
                             if child.nodeType == dom.Node.ELEMENT_NODE
                                and child.nodeName == 'dn']
             return map(lambda c: c.attributes['value'].value.encode('utf8'), xml_childs)
-        except KeyError, IndentationError:
+        except (KeyError, IndentationError):
             raise UcsmFatalError('No outUnresolved section in server response!')
 
     def resolve_children(self, class_id='', dn='', hierarchy=False, filter=UcsmFilterOp()):
@@ -300,7 +305,7 @@ class UcsmConnection(object):
             dns = [ child.attributes['value'].value.encode('utf8') for child in out_dns_node.childNodes
                         if child.nodeType == dom.Node.ELEMENT_NODE]
             return dns
-        except IndexError,KeyError:
+        except (IndexError, KeyError):
             raise UcsmFatalError('No outDns section in server response!')
 
 
@@ -476,11 +481,17 @@ class UcsmConnection(object):
         return self._get_pairs_from_response(data)
 
     def _refresh(self):
-        self.__cookie = self.refresh()
+        LOG.debug('Refreshing cookie...')
+        self.refresh()
         self.__refresh_timer = self._recreate_refresh_timer()
+        self.__refresh_timer.start()
+
+    def _start_autorefresh(self):
+        self.__refresh_timer = self._recreate_refresh_timer()
+        self.__refresh_timer.start()
 
     def _recreate_refresh_timer(self):
-        Timer(self.refresh_period/2, self._refresh)
+        return Timer(min(self.refresh_period/2, self.cookie_timeout), self._refresh)
 
     def _check_is_error(self, response_atom):
         if response_atom.attributes.has_key("errorCode"):
@@ -491,19 +502,14 @@ class UcsmConnection(object):
     def _perform_xml_call(self, request_data, headers=None):
         conn = self._create_connection()
         body = request_data
-        global DEBUG
-        if DEBUG:
-            import sys
-            print >> sys.stderr, ">> %s" % body
+        LOG.debug(">> %s", body)
         try:
             conn.request("POST", self.__ENDPOINT, body)
             reply = conn.getresponse()
             reply_data = reply.read()
         except socket.error, e:
             raise UcsmFatalError('Error during connecting: %s' % e)
-        if DEBUG:
-            import sys
-            print >> sys.stderr, "<< %s" % reply_data
+        LOG.debug("<< %s", reply_data)
         try:
             reply_xml = minidom.parseString(reply_data)
         except:
@@ -528,18 +534,13 @@ class UcsmConnection(object):
                                                        child_data=filter.final_xml_node(), cookie=self.__cookie)
         conn = self._create_connection()
         body = request_data
-        global DEBUG
-        if DEBUG:
-            import sys
-            print >> sys.stderr, ">> %s" % body
+        LOG.debug(">> %s", body)
         try:
             conn.request("POST", self.__ENDPOINT, body)
             reply = conn.getresponse()
             while True:
                 reply_data = self._read_event_from_reply(reply)
-                if DEBUG:
-                    import sys
-                    print >> sys.stderr, "<<e %s" % reply_data
+                LOG.debug("<<e %s" % reply_data)
                 try:
                     reply_xml = minidom.parseString(reply_data)
                     yield reply_xml, conn
@@ -560,7 +561,6 @@ class UcsmConnection(object):
             self._check_is_error(response_atom)
             self.refresh_period = float(response_atom.attributes["outRefreshPeriod"].value)
             self.__cookie = response_atom.attributes["outCookie"].value
-            self.__refresh_timer = self._recreate_refresh_timer()
             self.privileges = response_atom.attributes["outPriv"].value.split(',')
             return self.__cookie
         else:
