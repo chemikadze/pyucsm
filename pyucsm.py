@@ -510,10 +510,10 @@ class UcsmConnection(object):
             raise UcsmFatalError("Error during XML parsing.")
         return reply_xml, conn
 
-    def iter_events(self):
+    def iter_events(self, filter=UcsmFilterOp()):
         """Starts listen events, iterating through them. Yields event id and configuraion.
         """
-        for root_xml, conn in self._iter_xml_events():
+        for root_xml, conn in self._iter_xml_events(filter):
             for event_xml in root_xml.getElementsByTagName('configMoChangeEvent'):
                 event_id = int(event_xml.getAttribute('inEid'))
                 configs = event_xml.getElementsByTagName('inConfig')
@@ -523,9 +523,9 @@ class UcsmConnection(object):
                     for child in childs:
                         yield event_id, child
 
-    def _iter_xml_events(self):
+    def _iter_xml_events(self, filter=UcsmFilterOp()):
         request_data = self._instantiate_complex_query('eventSubscribe',
-                                                       child_data=UcsmFilterOp().final_xml_node(), cookie=self.__cookie)
+                                                       child_data=filter.final_xml_node(), cookie=self.__cookie)
         conn = self._create_connection()
         body = request_data
         global DEBUG
