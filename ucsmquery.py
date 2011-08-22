@@ -161,7 +161,8 @@ def import_class(path):
     return getattr(__import__(mod, fromlist=[cls]), cls)
 
 
-if __name__ == '__main__':
+def main():
+    global CONN_CLS
     try:
         argv = sys.argv[1:]
         opts, args = getopt.gnu_getopt(argv, 'l:p:P:dqc',
@@ -205,3 +206,6 @@ if __name__ == '__main__':
                 opts=comm_opts, port=port)
     else:
         usage()
+
+if __name__ == '__main__':
+    main()
