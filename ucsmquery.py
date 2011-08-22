@@ -120,18 +120,18 @@ def print_objects(objects, only_dn=False, hierarchy=False):
 
 
 def print_objects_glob(objects):
-    print_objects(object, ONLY_DN, HIERARCHY)
+    print_objects(objects, ONLY_DN, HIERARCHY)
 
 
 def serialize_print(data):
     if isinstance(data, list):
         if len(data) and isinstance(data[0], UcsmObject):
-            print_objects(data)
+            print_objects_glob(data)
         else:
             for elem in data:
                 serialize_print(elem)
     if isinstance(data, UcsmObject):
-        print_objects([data])
+        print_objects_glob([data])
     if isinstance(data, dict):
         for key, val in data.items():
             print '%s:'
@@ -187,9 +187,11 @@ def import_class(path):
 
 def main():
     global CONN_CLS
+    global ONLY_DN
+    global HIERARCHY
     try:
         argv = sys.argv[1:]
-        opts, args = getopt.gnu_getopt(argv, 'l:p:P:dqc',
+        opts, args = getopt.gnu_getopt(argv, 'l:p:P:dqcr',
                                        get_possible_opts(CONN_CLS))
     except getopt.GetoptError, e:
         usage()
