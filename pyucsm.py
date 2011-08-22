@@ -126,8 +126,10 @@ class UcsmConnection(object):
             self.cookie_timeout = cookie_timeout
             self._start_autorefresh()
             return self.__cookie
-        except (KeyError, UcsmError):
+        except KeyError:
             raise UcsmFatalError("Wrong reply syntax.")
+        except UcsmFatalError, e:
+            raise UcsmFatalError("Wrong reply synatax: %s" % e)
 
     def set_auth(self, cookie, login=None, password=None):
         self.__cookie = cookie
