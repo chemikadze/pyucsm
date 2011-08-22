@@ -18,7 +18,7 @@ setup(
     description = "Client library for Cisco UCS XML API",
     long_description = read('README'),
     url = 'https://github.com/chemikadze/pyucsm',
-    license = '',  # TODO
+    license = 'Apache',
     author = 'Nikolay Sokolov',
     author_email = 'nsokolov@griddynamics.com',
     py_modules = ['pyucsm', 'ucsmquery'],
@@ -27,7 +27,7 @@ setup(
         'Environment :: Console',
         'Intended Audience :: Developers',
         'Intended Audience :: Information Technology',
-        'License :: OSI Approved :: ',  # TODO
+        'License :: OSI Approved :: Apache Software License',
         'Operating System :: OS Independent',
         'Programming Language :: Python',
     ],

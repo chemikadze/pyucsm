@@ -1,5 +1,4 @@
 #!/usr/bin/python
-__author__ = 'nsokolov'
 
 HOST = '172.16.45.128'
 LOGIN = 'admin'
