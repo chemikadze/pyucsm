@@ -87,8 +87,8 @@ Commands:
 
 Arguments for UCSM query must be used as long options. Sample:
 
-ucsmquery.py example.com -l admin -p admin configFindDnsByClassId\
- --classId=computeItem
+ucsmquery.py 192.168.0.1 -l admin -p 12345  resolve_dn \
+--dn=sys/chassis-2/blade-5
 """ % create_doc(UcsmConnection)
 
 
