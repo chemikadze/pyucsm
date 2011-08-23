@@ -30,7 +30,7 @@ from inspect import getargspec
 import sys
 
 
-IGNORE = []
+IGNORE = ['set_auth', 'login', 'logout', 'refresh']
 CONN_CLS = UcsmConnection
 ONLY_DN = False
 HIERARCHY = False
