@@ -1,1 +1,3 @@
 include setup.cfg
+include README
+include LICENSE
