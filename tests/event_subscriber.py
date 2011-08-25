@@ -24,6 +24,9 @@
 #  @Project:     pyucsm
 #  @Description: Python binding for CISCO UCS XML API
 
+import sys
+
+sys.path.insert(0, '../')
 
 from pyucsm import *
 import testucsmparams

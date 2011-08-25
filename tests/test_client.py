@@ -23,12 +23,16 @@
 #  @Project:     pyucsm
 #  @Description: Python binding for CISCO UCS XML API
 
+import sys
+
+sys.path.insert(0, '../')
 
 import unittest
 import pyucsm
 import httplib
-import testucsmparams
 from xml.dom import minidom
+
+import reference_system as testucsmparams
 
 _host = testucsmparams.HOST
 _login = testucsmparams.LOGIN
