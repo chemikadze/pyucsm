@@ -923,3 +923,11 @@ class UcsmObject(object):
         self.attributes['status'] = status
         for c in self.children:
             c.set_creation_status(status)
+
+    def __eq__(self, other):
+        if isinstance(other, self.__class__):
+            return self.attributes == other.attributes\
+                and self.ucs_class == other.ucs_class\
+                and self.children == other.children
+        else:
+            return False
