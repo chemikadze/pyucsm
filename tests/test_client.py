@@ -23,12 +23,18 @@
 #  @Project:     pyucsm
 #  @Description: Python binding for CISCO UCS XML API
 
+import sys
+import os
+
+sys.path.insert(0, os.path.normpath(os.path.join(os.path.dirname(__file__),
+                                                 os.path.pardir)))
 
 import unittest
 import pyucsm
 import httplib
-import testucsmparams
 from xml.dom import minidom
+
+import reference_system as testucsmparams
 
 _host = testucsmparams.HOST
 _login = testucsmparams.LOGIN
@@ -159,43 +165,6 @@ class TestUcsmConnection(MyBaseTest):
                              conn._instantiate_complex_query('getSmth',
                                                              child_data_= (pyucsm.UcsmAttribute('blade','cores')>2).xml(),
                                                              cookie='123456'))
-
-    def test_ucsm_object_single(self):
-        xml_str = """<computeBlade adminPower="policy" adminState="in-service" assignedToDn="org-root/ls-11"
-        association="associated" availability="unavailable" availableMemory="8192" chassisId="1"
-        checkPoint="discovered" connPath="A,B" connStatus="A" descr="" discovery="complete" dn="sys/chassis-1/blade-1"
-        fltAggr="0" fsmDescr="" fsmFlags="" fsmPrev="TurnupSuccess" fsmProgr="100" fsmRmtInvErrCode="none"
-        fsmRmtInvErrDescr="" fsmRmtInvRslt="" fsmStageDescr="" fsmStamp="2011-06-29T12:35:04.205" fsmStatus="nop"
-        fsmTry="0" intId="28925" lc="undiscovered" lcTs="1970-01-01T01:00:00.000" lowVoltageMemory="not-applicable"
-        managingInst="A" memorySpeed="not-applicable" model="N20-B6620-1" name="" numOfAdaptors="1" numOfCores="10"
-        numOfCoresEnabled="10" numOfCpus="2" numOfEthHostIfs="3" numOfFcHostIfs="0" numOfThreads="14"
-        operPower="on" operQualifier="" operState="ok" operability="operable"
-        originalUuid="1b4e28ba-2fa1-11d2-0101-b9a761bde3fb" presence="equipped" revision="0" serial="577"
-        serverId="1/1" slotId="1" totalMemory="8192" usrLbl="" uuid="1b4e28ba-2fa1-11d2-0101-b9a761bde3fb"
-        vendor="Cisco Systems Inc"/>"""
-        doc = minidom.parseString(xml_str)
-        elem = doc.childNodes[0]
-        obj = pyucsm.UcsmObject(elem)
-        self.assertEquals('policy', obj.attributes['adminPower'])
-        self.assertEquals('policy', obj.adminPower)
-        self.assertEquals('sys/chassis-1/blade-1', obj.dn)
-        self.assertEquals('computeBlade', obj.ucs_class)
-        obj.attributes['this_is_shurely_not_in_dict'] = 42
-        self.assertEquals(42, obj.this_is_shurely_not_in_dict)
-        obj.this_is_also_not_in_dict = 84
-        self.assertEquals(84, obj.this_is_also_not_in_dict)
-        copy = obj.copy()
-        self.assertEquals(len(obj.attributes), len(copy.attributes))
-        self.assertEquals(len(obj.children), len(obj.children))
-        obj.ucs_class += 'appended'
-        self.assertNotEquals(obj.ucs_class, copy.ucs_class)
-
-    def test_ucsm_object_hierarchy(self):
-        obj = pyucsm.UcsmObject('parentClass')
-        obj.children.append(pyucsm.UcsmObject('childClass1'))
-        obj.children.append(pyucsm.UcsmObject('childClass2'))
-        self.assertEquals(1, len(obj.find_children('childClass1')))
-        self.assertEquals(1, len(obj.find_children('childClass2')))
 
     def test_resolve_children(self):
         c = pyucsm.UcsmConnection(_host, 80)
@@ -417,6 +386,90 @@ class TestUcsmConnection(MyBaseTest):
             self.assertTrue(bool(sum(o.ucs_class == 'lsbootPolicy' for o in found.values())))
         finally:
             c.logout()
+
+
+class TestUcsmObject(MyBaseTest):
+
+    def test_ucsm_object_parsing(self):
+        xml_str = """<computeBlade adminPower="policy" adminState="in-service" assignedToDn="org-root/ls-11"
+        association="associated" availability="unavailable" availableMemory="8192" chassisId="1"
+        checkPoint="discovered" connPath="A,B" connStatus="A" descr="" discovery="complete" dn="sys/chassis-1/blade-1"
+        fltAggr="0" fsmDescr="" fsmFlags="" fsmPrev="TurnupSuccess" fsmProgr="100" fsmRmtInvErrCode="none"
+        fsmRmtInvErrDescr="" fsmRmtInvRslt="" fsmStageDescr="" fsmStamp="2011-06-29T12:35:04.205" fsmStatus="nop"
+        fsmTry="0" intId="28925" lc="undiscovered" lcTs="1970-01-01T01:00:00.000" lowVoltageMemory="not-applicable"
+        managingInst="A" memorySpeed="not-applicable" model="N20-B6620-1" name="" numOfAdaptors="1" numOfCores="10"
+        numOfCoresEnabled="10" numOfCpus="2" numOfEthHostIfs="3" numOfFcHostIfs="0" numOfThreads="14"
+        operPower="on" operQualifier="" operState="ok" operability="operable"
+        originalUuid="1b4e28ba-2fa1-11d2-0101-b9a761bde3fb" presence="equipped" revision="0" serial="577"
+        serverId="1/1" slotId="1" totalMemory="8192" usrLbl="" uuid="1b4e28ba-2fa1-11d2-0101-b9a761bde3fb"
+        vendor="Cisco Systems Inc"/>"""
+        doc = minidom.parseString(xml_str)
+        elem = doc.childNodes[0]
+        obj = pyucsm.UcsmObject(elem)
+        self.assertEquals('policy', obj.attributes['adminPower'])
+        self.assertEquals('policy', obj.adminPower)
+        self.assertEquals('sys/chassis-1/blade-1', obj.dn)
+        self.assertEquals('computeBlade', obj.ucs_class)
+        obj.attributes['this_is_shurely_not_in_dict'] = 42
+        self.assertEquals(42, obj.this_is_shurely_not_in_dict)
+        obj.this_is_also_not_in_dict = 84
+        self.assertEquals(84, obj.this_is_also_not_in_dict)
+        copy = obj.copy()
+        self.assertEquals(len(obj.attributes), len(copy.attributes))
+        self.assertEquals(len(obj.children), len(obj.children))
+        obj.ucs_class += 'appended'
+        self.assertNotEquals(obj.ucs_class, copy.ucs_class)
+
+    def test_ucsm_object_hierarchy(self):
+        obj = pyucsm.UcsmObject('parentClass')
+        obj.children.append(pyucsm.UcsmObject('childClass1'))
+        obj.children.append(pyucsm.UcsmObject('childClass2'))
+        self.assertEquals(1, len(obj.find_children('childClass1')))
+        self.assertEquals(1, len(obj.find_children('childClass2')))
+
+    def test_compare(self):
+        obj1 = pyucsm.UcsmObject('testObject')
+        obj1.dn = 'org-root/org-test'
+        obj2 = pyucsm.UcsmObject('testObject')
+        obj2.dn = 'org-root/org-test'
+        obj3 = pyucsm.UcsmObject('testObject')
+        obj3.dn = 'org-root/org-test2'
+        obj4 = pyucsm.UcsmObject('testObject1')
+        obj4.dn = 'org-root/org-test'
+        self.assertEqual(obj1, obj2)
+        self.assertNotEqual(obj1, obj3)
+        self.assertNotEqual(obj1, obj4)
+
+    def test_recursive_compare(self):
+        an_obja = pyucsm.UcsmObject('testObject')
+        an_objb = pyucsm.UcsmObject('testObject')
+
+        obj1 = pyucsm.UcsmObject('testObject')
+        obj1.dn = 'org-root/org-test'
+        obj2 = pyucsm.UcsmObject('testObject')
+        obj2.dn = 'org-root/org-test'
+        obj3 = pyucsm.UcsmObject('testObject')
+        obj3.dn = 'org-root/org-test2'
+        obj4 = pyucsm.UcsmObject('testObject1')
+        obj4.dn = 'org-root/org-test'
+
+        for child in (obj2, obj3, obj4):
+            obja = an_obja.copy()
+            objb = an_objb.copy()
+            obja.children.append(obj1)
+            objb.children.append(child.copy())
+            self.assertEquals( obja == objb, obj1 == child )
+
+    def test_copy(self):
+        obja = pyucsm.UcsmObject('testObject')
+        obja.dn = 'org-root/org-test'
+        objc = pyucsm.UcsmObject('testObject')
+        objc.dn = 'org-root/org-test'
+        obja.children.append(objc)
+        objb = obja.copy()
+        self.assertIsNot(obja, objb)
+        self.assertEqual(obja, objb)
+
 
 if __name__ == '__main__':
     unittest.main()
