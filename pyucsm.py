@@ -942,7 +942,7 @@ class XmlGeneratorVisitor(UcsmFilterVisitor):
     def visit_op(self, node):
         xml_node = minidom.Text()
         xml_node.data = ''
-        return node
+        return xml_node
 
     def visit_property(self, node):
         xml_node = minidom.Element(node.operator)
