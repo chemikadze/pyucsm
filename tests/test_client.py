@@ -130,6 +130,19 @@ class TestUcsmConnection(MyBaseTest):
         self.assertIsInstance(expr, pyucsm.UcsmComposeFilter)
         self.assertNotEqual(len(expr.arguments), 3)
 
+    def test__xml_filter(self):
+        expr = (pyucsm.UcsmAttribute('cls','attr')>5) | (pyucsm.UcsmAttribute('cls','attr')>5) & \
+               (pyucsm.UcsmAttribute('cls','attr')>5)
+        self.assertIsInstance(expr, pyucsm.UcsmComposeFilter)
+        self.assertXmlEquals(expr.xml(),
+                             '<or>'
+                               '<gt class="cls" property="attr" value="5"/>'
+                               '<and>'
+                                 '<gt class="cls" property="attr" value="5"/>'
+                                 '<gt class="cls" property="attr" value="5"/>'
+                               '</and>'
+                             '</or>')
+
     def test_simple_query_construct(self):
         conn = pyucsm.UcsmConnection('host', 80)
         self.assertXmlEquals('<firsttest />',

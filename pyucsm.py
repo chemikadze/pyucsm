@@ -101,7 +101,7 @@ class ReadlineAdapter(object):
 
 class UcsmFilterOp(object):
     def xml(self):
-        return ''
+        return self.xml_node().toxml()
 
     def final_xml(self):
         return self.final_xml_node().toxml()
@@ -113,13 +113,15 @@ class UcsmFilterOp(object):
         return node
 
     def xml_node(self):
-        node = minidom.Text()
-        node.data = ''
-        return node
+        visitor = XmlGeneratorVisitor()
+        return self.visit(visitor)
 
     def _raise_type_mismatch(self, obj):
         raise UcsmTypeMismatchError("Expected UcsmPropertyFilter or\
         UcsmComposeFilter, got object %s" % repr(obj))
+
+    def visit(self, visitor):
+        return visitor.visit_op(self)
 
 
 class UcsmConnection(object):
@@ -555,6 +557,7 @@ configs."""
 
     def resolve_elements(self, dn, class_id, single_level=False,
                          hierarchy=False, filter=UcsmFilterOp()):
+        """Recursively resolves all elements that org can work with"""
         data, conn = self._perform_query('orgResolveElements',
                                          filter=filter,
                                          dn=dn,
@@ -791,15 +794,8 @@ class UcsmPropertyFilter(UcsmFilterToken):
         self.operator = operator
         self.value = value
 
-    def xml(self):
-        return self.xml_node().toxml()
-
-    def xml_node(self):
-        node = minidom.Element(self.operator)
-        node.setAttribute('class', self.attribute.class_)
-        node.setAttribute('property', self.attribute.name)
-        node.setAttribute('value', str(self.value))
-        return node
+    def visit(self, visitor):
+        return visitor.visit_property(self)
 
 
 class UcsmComposeFilter(UcsmFilterToken):
@@ -817,14 +813,8 @@ class UcsmComposeFilter(UcsmFilterToken):
             else:
                 self.arguments.append(arg)
 
-    def xml(self):
-        return self.xml_node().toxml()
-
-    def xml_node(self):
-        node = minidom.Element(self.operator)
-        for arg in self.arguments:
-            node.appendChild(arg.xml_node())
-        return node
+    def visit(self, visitor):
+        return visitor.visit_compose(self)
 
 
 class UcsmObject(object):
@@ -923,3 +913,46 @@ class UcsmObject(object):
         self.attributes['status'] = status
         for c in self.children:
             c.set_creation_status(status)
+
+    def __eq__(self, other):
+        if isinstance(other, self.__class__):
+            return self.attributes == other.attributes\
+                and self.ucs_class == other.ucs_class\
+                and self.children == other.children
+        else:
+            return False
+
+
+class UcsmFilterVisitor(object):
+    """Base class for recursive operations with filter hierarchy."""
+
+    def visit_op(self, node):
+        raise NotImplementedError()
+
+    def visit_property(self, node):
+        raise NotImplementedError()
+
+    def visit_compose(self, node):
+        raise NotImplementedError()
+
+
+class XmlGeneratorVisitor(UcsmFilterVisitor):
+    """"Xmlizer through visitors."""
+
+    def visit_op(self, node):
+        xml_node = minidom.Text()
+        xml_node.data = ''
+        return node
+
+    def visit_property(self, node):
+        xml_node = minidom.Element(node.operator)
+        xml_node.setAttribute('class', node.attribute.class_)
+        xml_node.setAttribute('property', node.attribute.name)
+        xml_node.setAttribute('value', str(node.value))
+        return xml_node
+
+    def visit_compose(self, node):
+        xml_node = minidom.Element(node.operator)
+        for arg in node.arguments:
+            xml_node.appendChild(arg.visit(self))
+        return xml_node
