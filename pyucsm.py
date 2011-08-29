@@ -955,4 +955,4 @@ class XmlGeneratorVisitor(UcsmFilterVisitor):
         xml_node = minidom.Element(node.operator)
         for arg in node.arguments:
             xml_node.appendChild(arg.visit(self))
-        return xml_nodes
+        return xml_node
