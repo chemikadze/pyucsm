@@ -507,7 +507,7 @@ configs."""
         return self._get_objects_from_response(data)
 
     def instantiate_template(self, dn, name, target_org_dn='org-root',
-                             hierarchy=False):  # TODO: uncovered
+                             hierarchy=False):
         """Returns created profile."""
         data, conn = self._perform_query('lsInstantiateTemplate',
                                          cookie=self.__cookie,
@@ -521,7 +521,7 @@ configs."""
         return res
 
     def instantiate_n_template(self, dn, target_org_dn='org-root', prefix='',
-                               number=1, hierarchy=False):  # TODO: uncovered
+                               number=1, hierarchy=False):
         data, conn = self._perform_query('lsInstantiateNTemplate',
                                          cookie=self.__cookie,
                                          dn=dn,
@@ -535,7 +535,8 @@ configs."""
 
     def instantiate_n_template_named(self, dn, name_set,
                                      target_org_dn='org-root',
-                                     hierarchy=True):  # TODO: uncovered
+                                     hierarchy=True):
+        """Creates profiles with given names."""
         inNames = minidom.Element('inNameSet')
         for name in name_set:
             name_elem = minidom.Element('dn')

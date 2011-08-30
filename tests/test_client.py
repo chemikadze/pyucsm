@@ -40,7 +40,11 @@ _host = testucsmparams.HOST
 _login = testucsmparams.LOGIN
 _password = testucsmparams.PASSWORD
 
-pyucsm.DEBUG = True
+import logging
+logging.basicConfig()
+pyucsm.set_debug(True)
+
+TEST_ORG = 'org-root/org-pyucsmtest'
 
 class MyBaseTest(unittest.TestCase):
     def assertXmlEquals(self, str1, str2):
@@ -136,7 +140,7 @@ class TestUcsmConnection(MyBaseTest):
         self.assertIsInstance(expr, pyucsm.UcsmComposeFilter)
         self.assertNotEqual(len(expr.arguments), 3)
 
-    def test__xml_filter(self):
+    def test_xml_filter(self):
         expr = (pyucsm.UcsmAttribute('cls','attr')>5) | (pyucsm.UcsmAttribute('cls','attr')>5) & \
                (pyucsm.UcsmAttribute('cls','attr')>5)
         self.assertIsInstance(expr, pyucsm.UcsmComposeFilter)
@@ -386,6 +390,129 @@ class TestUcsmConnection(MyBaseTest):
             self.assertTrue(bool(sum(o.ucs_class == 'lsbootPolicy' for o in found.values())))
         finally:
             c.logout()
+
+    def test_instantiate_template(self):
+        def parametrized_test(c, src, name, target='org-root'):
+            try:
+                created = None
+                if target:
+                    created = c.instantiate_template(src, name, target)
+                else:
+                    created = c.instantiate_template(src, name)
+                    target = 'org-root'
+                self.assertIsInstance(created, pyucsm.UcsmObject)
+                self.assertEqual(created.ucs_class, 'lsServer')
+                self.assertEqual(created.name, name)
+                self.assertEqual(os.path.dirname(created.dn), target)
+            finally:
+                if created:
+                    c.delete_object(created)
+
+        c = pyucsm.UcsmConnection(_host, 80)
+        try:
+            test_org = None
+            c.login(_login, _password)
+            test_org = pyucsm.UcsmObject('orgOrg')
+            test_org.dn = TEST_ORG
+            test_org = c.create_object(test_org)
+
+            tests = [
+                ('org-root/ls-11', 'mycoolprof'),
+                ('org-root/ls-11', 'mycoolprof', 'org-root/org-test')
+            ]
+            for test in tests:
+                parametrized_test(c, *test)
+        finally:
+            try:
+                c.delete_object(test_org)
+            finally:
+                c.logout()
+
+    def test_instantiate_n_template(self):
+        def parametrized_test(c, src, target='org-root', prefix='', number=1):
+            try:
+                created = c.instantiate_n_template(src, target_org_dn=target,
+                                                   prefix=prefix,
+                                                   number=number)
+                self.assertIsInstance(created, list)
+                self.assertEqual(len(created), number)
+                for obj in created:
+                    self.assertIsInstance(obj, pyucsm.UcsmObject)
+                    self.assertEqual(obj.ucs_class, 'lsServer')
+                    self.assertEqual(os.path.dirname(obj.dn), target)
+                    if prefix:
+                        self.assertTrue(obj.name.startswith(prefix))
+            finally:
+                if created:
+                    for obj in created:
+                        c.delete_object(obj)
+
+        c = pyucsm.UcsmConnection(_host, 80)
+        try:
+            test_org = None
+            c.login(_login, _password)
+            test_org = pyucsm.UcsmObject('orgOrg')
+            test_org.dn = TEST_ORG
+            test_org = c.create_object(test_org)
+
+            tests = [
+                (('org-root/ls-11',), {}),
+                (('org-root/ls-11',), {'prefix': 'ololo'}),
+                (('org-root/ls-11',), {'number': 2}),
+                (('org-root/ls-11',), {'target': TEST_ORG})
+            ]
+            for args, kwargs in tests:
+                parametrized_test(c, *args, **kwargs)
+        finally:
+            try:
+                c.delete_object(test_org)
+            finally:
+                c.logout()
+
+    def test_instantiate_n_template_named(self):
+        def parametrized_test(c, src, names, target='org-root', prefix=''):
+            try:
+                created = None
+                created = c.instantiate_n_template_named(src, names,
+                                                         target_org_dn=target)
+                self.assertIsInstance(created, list)
+                self.assertEqual(len(created), len(names))
+                self.assertEqual(
+                    set(names),
+                    set(o.name for o in created)
+                )
+
+                for obj in created:
+                    self.assertIsInstance(obj, pyucsm.UcsmObject)
+                    self.assertEqual(obj.ucs_class, 'lsServer')
+                    self.assertEqual(os.path.dirname(obj.dn), target)
+                    if prefix:
+                        self.assertTrue(obj.name.startswith(prefix))
+            finally:
+                if created:
+                    for obj in created:
+                        c.delete_object(obj)
+
+        c = pyucsm.UcsmConnection(_host, 80)
+        try:
+            test_org = None
+            c.login(_login, _password)
+            test_org = pyucsm.UcsmObject('orgOrg')
+            test_org.dn = TEST_ORG
+            test_org = c.create_object(test_org)
+
+            tests = [
+                (('org-root/ls-11', ['test']), {}),
+                (('org-root/ls-11', ['test1', 'test2']), {}),
+                (('org-root/ls-11', ['test']), {'target': TEST_ORG})
+            ]
+            for args, kwargs in tests:
+                parametrized_test(c, *args, **kwargs)
+        finally:
+            try:
+                c.delete_object(test_org)
+            finally:
+                c.logout()
 
 
 class TestUcsmObject(MyBaseTest):
