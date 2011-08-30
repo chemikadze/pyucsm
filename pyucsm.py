@@ -517,11 +517,8 @@ configs."""
                                          inHierarchical=hierarchy and "yes"
                                                                   or "no")
         self._check_is_error(data.firstChild)
-        res = self._get_objects_from_response(data)
-        if len(res):
-            return res[0]
-        else:
-            return None
+        res = self._get_single_object_from_response(data)
+        return res
 
     def instantiate_n_template(self, dn, target_org_dn='org-root', prefix='',
                                number=1, hierarchy=False):  # TODO: uncovered
