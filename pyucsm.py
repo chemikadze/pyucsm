@@ -506,6 +506,19 @@ configs."""
         self._check_is_error(data.firstChild)
         return self._get_objects_from_response(data)
 
+    def clone_profile(self, dn, name, target_org_dn='org-root',
+                      hierarchy=True):
+        data, conn = self._perform_query('lsClone',
+                                         cookie=self.__cookie,
+                                         dn=dn,
+                                         inTargetOrg=target_org_dn,
+                                         inServerName=name,
+                                         inHierarchical=hierarchy and "yes"
+                                                                  or "no")
+        self._check_is_error(data.firstChild)
+        res = self._get_single_object_from_response(data)
+        return res
+
     def instantiate_template(self, dn, name, target_org_dn='org-root',
                              hierarchy=False):
         """Returns created profile."""
