@@ -449,7 +449,10 @@ several configConfMo requests. Returns dirtionary of dn:canged_config.
 Special config object attribute 'status' is used to determines action.
 Possible values: ('created', 'deleted', 'modified')."""
         configs_xml = minidom.Element('inConfigs')
-        for k, c in configs.items():
+        iteritems = configs
+        if isinstance(configs, dict):
+            iteritems = configs.iteritems()
+        for k, c in iteritems:
             conf = minidom.Element('pair')
             conf.setAttribute('key', k)
             conf.appendChild(c.xml_node(hierarchy))
