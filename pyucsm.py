@@ -168,7 +168,7 @@ Cookie refresh will be performed automatically."""
         except KeyError:
             raise UcsmFatalError("Wrong reply syntax.")
         except UcsmFatalError, e:
-            raise UcsmFatalError("Wrong reply synatax: %s" % e)
+            raise UcsmFatalError(str(e))
 
     def set_auth(self, cookie, login=None, password=None):
         self.__cookie = cookie
@@ -195,7 +195,7 @@ Cookie refresh will be performed automatically."""
         except KeyError:
             raise UcsmFatalError("Wrong reply syntax.")
         except UcsmFatalError, e:
-            raise UcsmFatalError("Error during connecting: %s" % e)
+            raise UcsmFatalError(str(e))
 
     def is_logged_in(self):
         return self.__cookie is not None
