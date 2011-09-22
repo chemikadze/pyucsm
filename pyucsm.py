@@ -426,17 +426,17 @@ of unresolved dns."""
     def update_object(self, conf, hierarchy=False):
         return self._conf_mo_status(conf, 'modified', hierarchy=hierarchy)
 
-    def conf_mo(self, config, dn="", hierachy=False):
+    def conf_mo(self, config, dn="", hierarchy=False):
         """Modifies or creates config. Special config object attribute 'status'
 is used to determines action. Possible values:
 ('created', 'deleted', 'modified')."""
         in_config_node = minidom.Element('inConfig')
-        in_config_node.appendChild(config.xml_node(hierachy))
+        in_config_node.appendChild(config.xml_node(hierarchy))
         data, conn = self._perform_complex_query('configConfMo',
                                                  data=in_config_node,
                                                  dn=dn,
                                                  cookie=self.__cookie,
-                                                 inHierarchical=hierachy
+                                                 inHierarchical=hierarchy
                                                                 and "yes"
                                                                 or "no")
         self._check_is_error(data.firstChild)
