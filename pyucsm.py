@@ -172,7 +172,7 @@ Cookie refresh will be performed automatically."""
         except KeyError:
             raise UcsmFatalError("Wrong reply syntax.")
         except UcsmFatalError, e:
-            raise UcsmFatalError("Wrong reply synatax: %s" % e)
+            raise UcsmFatalError(str(e))
 
     def set_auth(self, cookie, login=None, password=None):
         self.__cookie = cookie
@@ -199,7 +199,7 @@ Cookie refresh will be performed automatically."""
         except KeyError:
             raise UcsmFatalError("Wrong reply syntax.")
         except UcsmFatalError, e:
-            raise UcsmFatalError("Error during connecting: %s" % e)
+            raise UcsmFatalError(str(e))
 
     def is_logged_in(self):
         return self.__cookie is not None
@@ -430,17 +430,17 @@ of unresolved dns."""
     def update_object(self, conf, hierarchy=False):
         return self._conf_mo_status(conf, 'modified', hierarchy=hierarchy)
 
-    def conf_mo(self, config, dn="", hierachy=False):
+    def conf_mo(self, config, dn="", hierarchy=False):
         """Modifies or creates config. Special config object attribute 'status'
 is used to determines action. Possible values:
 ('created', 'deleted', 'modified')."""
         in_config_node = minidom.Element('inConfig')
-        in_config_node.appendChild(config.xml_node(hierachy))
+        in_config_node.appendChild(config.xml_node(hierarchy))
         data, conn = self._perform_complex_query('configConfMo',
                                                  data=in_config_node,
                                                  dn=dn,
                                                  cookie=self.__cookie,
-                                                 inHierarchical=hierachy
+                                                 inHierarchical=hierarchy
                                                                 and "yes"
                                                                 or "no")
         self._check_is_error(data.firstChild)
@@ -453,7 +453,10 @@ several configConfMo requests. Returns dirtionary of dn:canged_config.
 Special config object attribute 'status' is used to determines action.
 Possible values: ('created', 'deleted', 'modified')."""
         configs_xml = minidom.Element('inConfigs')
-        for k, c in configs.items():
+        iteritems = configs
+        if isinstance(configs, dict):
+            iteritems = configs.iteritems()
+        for k, c in iteritems:
             conf = minidom.Element('pair')
             conf.setAttribute('key', k)
             conf.appendChild(c.xml_node(hierarchy))
@@ -509,6 +512,19 @@ configs."""
                                                                 or "no")
         self._check_is_error(data.firstChild)
         return self._get_objects_from_response(data)
+
+    def clone_profile(self, dn, name, target_org_dn='org-root',
+                      hierarchy=True):
+        data, conn = self._perform_query('lsClone',
+                                         cookie=self.__cookie,
+                                         dn=dn,
+                                         inTargetOrg=target_org_dn,
+                                         inServerName=name,
+                                         inHierarchical=hierarchy and "yes"
+                                                                  or "no")
+        self._check_is_error(data.firstChild)
+        res = self._get_single_object_from_response(data)
+        return res
 
     def instantiate_template(self, dn, name, target_org_dn='org-root',
                              hierarchy=False):

@@ -171,7 +171,7 @@ def perform(host, login, password, command, args=list(), opts=dict(), port=80):
         global quiet
         client.login(login, password)
         reply = getattr(client, command)(*args, **kwargs_from_opts(opts))
-        print serialize_print(reply)
+        serialize_print(reply)
     except (KeyError, AttributeError):
         wrong_command()
     except UcsmError, e:

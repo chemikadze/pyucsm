@@ -398,6 +398,43 @@ class TestUcsmConnection(MyBaseTest):
         finally:
             c.logout()
 
+    def test_clone_profile(self):
+        def parametrized_test(c, src, name, target='org-root'):
+            try:
+                created = None
+                if target:
+                    created = c.clone_profile(src, name, target)
+                else:
+                    created = c.clone_profile(src, name)
+                    target = 'org-root'
+                self.assertIsInstance(created, pyucsm.UcsmObject)
+                self.assertEqual(created.ucs_class, 'lsServer')
+                self.assertEqual(created.name, name)
+                self.assertEqual(os.path.dirname(created.dn), target)
+            finally:
+                if created:
+                    c.delete_object(created)
+
+        c = pyucsm.UcsmConnection(_host, 80)
+        try:
+            test_org = None
+            c.login(_login, _password)
+            test_org = pyucsm.UcsmObject('orgOrg')
+            test_org.dn = TEST_ORG
+            test_org = c.create_object(test_org)
+
+            tests = [
+                ('org-root/ls-11', 'mycoolprof'),
+                ('org-root/ls-11', 'mycoolprof', TEST_ORG)
+            ]
+            for test in tests:
+                parametrized_test(c, *test)
+        finally:
+            try:
+                c.delete_object(test_org)
+            finally:
+                c.logout()
+
     def test_instantiate_template(self):
         def parametrized_test(c, src, name, target='org-root'):
             try:
@@ -563,13 +600,13 @@ class TestUcsmObject(MyBaseTest):
 
     def test_compare(self):
         obj1 = pyucsm.UcsmObject('testObject')
-        obj1.dn = 'org-root/org-test'
+        obj1.dn = TEST_ORG
         obj2 = pyucsm.UcsmObject('testObject')
-        obj2.dn = 'org-root/org-test'
+        obj2.dn = TEST_ORG
         obj3 = pyucsm.UcsmObject('testObject')
         obj3.dn = 'org-root/org-test2'
         obj4 = pyucsm.UcsmObject('testObject1')
-        obj4.dn = 'org-root/org-test'
+        obj4.dn = TEST_ORG
         self.assertEqual(obj1, obj2)
         self.assertNotEqual(obj1, obj3)
         self.assertNotEqual(obj1, obj4)
@@ -579,13 +616,13 @@ class TestUcsmObject(MyBaseTest):
         an_objb = pyucsm.UcsmObject('testObject')
 
         obj1 = pyucsm.UcsmObject('testObject')
-        obj1.dn = 'org-root/org-test'
+        obj1.dn = TEST_ORG
         obj2 = pyucsm.UcsmObject('testObject')
-        obj2.dn = 'org-root/org-test'
+        obj2.dn = TEST_ORG
         obj3 = pyucsm.UcsmObject('testObject')
         obj3.dn = 'org-root/org-test2'
         obj4 = pyucsm.UcsmObject('testObject1')
-        obj4.dn = 'org-root/org-test'
+        obj4.dn = TEST_ORG
 
         for child in (obj2, obj3, obj4):
             obja = an_obja.copy()
@@ -596,9 +633,9 @@ class TestUcsmObject(MyBaseTest):
 
     def test_copy(self):
         obja = pyucsm.UcsmObject('testObject')
-        obja.dn = 'org-root/org-test'
+        obja.dn = TEST_ORG
         objc = pyucsm.UcsmObject('testObject')
-        objc.dn = 'org-root/org-test'
+        objc.dn = TEST_ORG
         obja.children.append(objc)
         objb = obja.copy()
         self.assertIsNot(obja, objb)

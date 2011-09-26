@@ -19,7 +19,7 @@ configFindDependencies
 faultResolveFault                
 aaaKeepAlive                        
 configFindDnsByClassId           V
-lsClone                                
+lsClone                          V
 aaaLogin                         V
 configMoChangeEvent                
 lsInstantiateNNamedTemplate      V
