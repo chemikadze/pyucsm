@@ -55,22 +55,29 @@ class TestUcsmConnection(MyBaseTest):
     """
 
     def test_constructor_nossl(self):
-        item = pyucsm.UcsmConnection(_host, 80)
+        item = pyucsm.UcsmConnection(_host)
         self.assertEqual(item.__dict__['_create_connection']().__class__, httplib.HTTPConnection)
         
     def test_constructor_ssl(self):
-        item = pyucsm.UcsmConnection(_host, 80, secure=True)
+        item = pyucsm.UcsmConnection(_host, secure=True)
         self.assertEqual(item.__dict__['_create_connection']().__class__, httplib.HTTPSConnection)
 
-    def test_connection_ok(self):
-        c = pyucsm.UcsmConnection(_host, 80)
+    def test_connection_ok_nossl(self):
+        c = pyucsm.UcsmConnection(_host)
+        try:
+            c.login(_login, _password)
+        finally:
+            c.logout()
+            
+    def test_connection_ok_ssl(self):
+        c = pyucsm.UcsmConnection(_host, secure=True)
         try:
             c.login(_login, _password)
         finally:
             c.logout()
 
     def test_connection_refresh(self):
-        c = pyucsm.UcsmConnection(_host, 80)
+        c = pyucsm.UcsmConnection(_host)
         try:
             c.login(_login, _password)
             c.refresh()
@@ -78,7 +85,7 @@ class TestUcsmConnection(MyBaseTest):
             c.logout()
         
     def test_connection_wrong_password(self):
-        c = pyucsm.UcsmConnection(_host, 80)
+        c = pyucsm.UcsmConnection(_host)
         if not testucsmparams.SIMULATOR:
             with self.assertRaises(pyucsm.UcsmResponseError):
                 c.login(_login, 'this is wrong password')
@@ -171,7 +178,7 @@ class TestUcsmConnection(MyBaseTest):
                                                              cookie='123456'))
 
     def test_resolve_children(self):
-        c = pyucsm.UcsmConnection(_host, 80)
+        c = pyucsm.UcsmConnection(_host)
         try:
             c.login(_login, _password)
             res = c.resolve_children('aaaUser', 'sys/user-ext')
@@ -182,7 +189,7 @@ class TestUcsmConnection(MyBaseTest):
             c.logout()
 
     def test_resolve_class(self):
-        c = pyucsm.UcsmConnection(_host, 80)
+        c = pyucsm.UcsmConnection(_host)
         try:
             c.login(_login, _password)
             res = c.resolve_class('pkiEp')
@@ -195,7 +202,7 @@ class TestUcsmConnection(MyBaseTest):
             c.logout()
 
     def test_resolve_classes(self):
-        c = pyucsm.UcsmConnection(_host, 80)
+        c = pyucsm.UcsmConnection(_host)
         try:
             c.login(_login, _password)
             res = c.resolve_classes(['computeItem', 'equipmentChassis'])
@@ -206,7 +213,7 @@ class TestUcsmConnection(MyBaseTest):
             c.logout()
 
     def test_resolve_dn(self):
-        c = pyucsm.UcsmConnection(_host, 80)
+        c = pyucsm.UcsmConnection(_host)
         try:
             c.login(_login, _password)
             res = c.resolve_dn('sys')
@@ -217,7 +224,7 @@ class TestUcsmConnection(MyBaseTest):
             c.logout()
 
     def test_resolve_dns(self):
-        c = pyucsm.UcsmConnection(_host, 80)
+        c = pyucsm.UcsmConnection(_host)
         try:
             c.login(_login, _password)
             res,unres = c.resolve_dns(['sys', 'mac', 'ololo'])
@@ -229,7 +236,7 @@ class TestUcsmConnection(MyBaseTest):
             c.logout()
 
     def test_resolve_parent(self):
-        c = pyucsm.UcsmConnection(_host, 80)
+        c = pyucsm.UcsmConnection(_host)
         try:
             c.login(_login, _password)
             res = c.resolve_parent('sys/user-ext')
@@ -241,7 +248,7 @@ class TestUcsmConnection(MyBaseTest):
             c.logout()
 
     def test_find_dns_by_class_id(self):
-        c = pyucsm.UcsmConnection(_host, 80)
+        c = pyucsm.UcsmConnection(_host)
         try:
             c.login(_login, _password)
             res = c.find_dns_by_class_id('macpoolUniverse')
@@ -256,7 +263,7 @@ class TestUcsmConnection(MyBaseTest):
     def test_conf_mo(self):
         import random
         if testucsmparams.SIMULATOR:
-            c = pyucsm.UcsmConnection(_host, 80)
+            c = pyucsm.UcsmConnection(_host)
             try:
                 c.login(_login, _password)
                 src = pyucsm.UcsmObject()
@@ -270,7 +277,7 @@ class TestUcsmConnection(MyBaseTest):
     def test_conf_mos(self):
         import random
         if testucsmparams.SIMULATOR:
-            c = pyucsm.UcsmConnection(_host, 80)
+            c = pyucsm.UcsmConnection(_host)
             try:
                 c.login(_login, _password)
                 src = pyucsm.UcsmObject()
@@ -286,7 +293,7 @@ class TestUcsmConnection(MyBaseTest):
     def test_conf_mo_group(self):
         import random
         if testucsmparams.SIMULATOR:
-            c = pyucsm.UcsmConnection(_host, 80)
+            c = pyucsm.UcsmConnection(_host)
             try:
                 c.login(_login, _password)
                 src = pyucsm.UcsmObject()
@@ -301,7 +308,7 @@ class TestUcsmConnection(MyBaseTest):
     def test_estimate_impact(self):
         import random
         if testucsmparams.SIMULATOR:
-            c = pyucsm.UcsmConnection(_host, 80)
+            c = pyucsm.UcsmConnection(_host)
             try:
                 c.login(_login, _password)
                 with self.assertRaises(pyucsm.UcsmResponseError):
@@ -323,7 +330,7 @@ class TestUcsmConnection(MyBaseTest):
                 c.logout()
 
     def test_scope(self):
-        c = pyucsm.UcsmConnection(_host, 80)
+        c = pyucsm.UcsmConnection(_host)
         try:
             c.login(_login, _password)
             res = c.scope('computeBlade', 'sys', recursive=True)
@@ -337,7 +344,7 @@ class TestUcsmConnection(MyBaseTest):
             c.logout()
 
     def test_config_mo_wrappers(self):
-        c = pyucsm.UcsmConnection(_host, 80)
+        c = pyucsm.UcsmConnection(_host)
         if testucsmparams.SIMULATOR:
             try:
                 c.login(_login, _password)
@@ -382,7 +389,7 @@ class TestUcsmConnection(MyBaseTest):
                 c.logout()
 
     def test_resolve_elements(self):
-        c = pyucsm.UcsmConnection(_host, 80)
+        c = pyucsm.UcsmConnection(_host)
         try:
             c.login(_login, _password)
 
@@ -408,7 +415,7 @@ class TestUcsmConnection(MyBaseTest):
                 if created:
                     c.delete_object(created)
 
-        c = pyucsm.UcsmConnection(_host, 80)
+        c = pyucsm.UcsmConnection(_host)
         try:
             test_org = None
             c.login(_login, _password)
@@ -418,7 +425,7 @@ class TestUcsmConnection(MyBaseTest):
 
             tests = [
                 ('org-root/ls-11', 'mycoolprof'),
-                ('org-root/ls-11', 'mycoolprof', 'org-root/org-test')
+                ('org-root/ls-11', 'mycoolprof', TEST_ORG)
             ]
             for test in tests:
                 parametrized_test(c, *test)
@@ -447,7 +454,7 @@ class TestUcsmConnection(MyBaseTest):
                     for obj in created:
                         c.delete_object(obj)
 
-        c = pyucsm.UcsmConnection(_host, 80)
+        c = pyucsm.UcsmConnection(_host)
         try:
             test_org = None
             c.login(_login, _password)
@@ -493,7 +500,7 @@ class TestUcsmConnection(MyBaseTest):
                     for obj in created:
                         c.delete_object(obj)
 
-        c = pyucsm.UcsmConnection(_host, 80)
+        c = pyucsm.UcsmConnection(_host)
         try:
             test_org = None
             c.login(_login, _password)

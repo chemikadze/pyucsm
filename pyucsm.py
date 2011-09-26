@@ -133,15 +133,19 @@ class UcsmConnection(object):
         self.__password = None
         self.__refresh_timer = None
         self.host = host
-        self.port = int(port) or 80
+        if port:
+            self.port = port
+        else:
+            self.port = secure and 443 or 80
         self.version = None
         self.session_id = None
+        self.secure = secure
         if secure:
             self._create_connection = lambda:\
-            httplib.HTTPSConnection(host, port, *args, **kwargs)
+            httplib.HTTPSConnection(self.host, self.port, *args, **kwargs)
         else:
             self._create_connection = lambda:\
-            httplib.HTTPConnection(host, port, *args, **kwargs)
+            httplib.HTTPConnection(self.host, self.port, *args, **kwargs)
 
     def login(self, login, password, cookie_timeout=60 * 10):
         """Performs authorisation and retrieving cookie from server.
