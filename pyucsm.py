@@ -31,6 +31,7 @@ import os
 import socket
 from xml.dom import minidom
 import xml.dom as dom
+import threading
 from threading import Timer
 
 DEBUG = False
@@ -133,6 +134,16 @@ class UcsmConnection(object):
         self.__password = None
         self.__refresh_timer = None
         self.host = host
+        self.refreshing = False
+        # notifier for refresh()
+        self.__wait_stop_lock = threading.Lock()
+        self.__wait_stop_cond = \
+            threading.Condition(self.__wait_stop_lock)
+        # notifier for requests
+        self.__wait_refresh_lock = threading.Lock()
+        self.__wait_refresh_cond = \
+            threading.Condition(self.__wait_refresh_lock)
+        self.concurrent_requests = 0
         if port:
             self.port = port
         else:
@@ -147,6 +158,70 @@ class UcsmConnection(object):
             self._create_connection = lambda:\
             httplib.HTTPConnection(self.host, self.port, *args, **kwargs)
 
+    def _syncronized_request(f):
+        def wrapper(self, *args, **kwargs):
+            try:
+                try:
+                    LOG.debug('Critical section for wait_refresh')
+                    self.__wait_refresh_cond.acquire()
+                    if self.refreshing:
+                        LOG.debug('Waiting for refresh to end')
+                        self.__wait_refresh_cond.wait(self.refresh_period)
+                        LOG.debug('Ended waiting for refresh')
+                    self.concurrent_requests += 1
+                finally:
+                    self.__wait_refresh_cond.release()
+                    LOG.debug('End critical section for wait_refresh')
+                return f(self, *args, **kwargs)
+            finally:
+                LOG.debug('Critical section for stop_cond')
+                self.__wait_stop_cond.acquire()
+                self.concurrent_requests -= 1
+                if not self.concurrent_requests:
+                    LOG.debug('Notify reqest for workers stop')
+                    self.__wait_stop_cond.notify_all()
+                LOG.debug('Current concurrent workers: %s' %
+                            self.concurrent_requests)
+                self.__wait_stop_cond.release()
+                LOG.debug('End critical section for stop_cond')
+        return wrapper
+
+    def refresh(self):
+        """Performs authorisation and retrieving cookie from server.
+Cookie refresh will be performed automatically."""
+        try:
+            try:
+                LOG.debug('Critical section for stop_lock')
+                self.__wait_stop_cond.acquire()
+                self.refreshing = True
+                if self.concurrent_requests:
+                    LOG.debug('Waiting for workers to stop')
+                    self.__wait_stop_cond.wait(self.refresh_period)
+                    LOG.debug('Ended waiting for workers to stop')
+            finally:
+                self.__wait_stop_cond.release()
+                LOG.debug('End critical section for stop_lock')
+            LOG.debug('Critical section for refresh')
+            self.__wait_refresh_cond.acquire()
+            login = self.__login
+            password = self.__password
+            cookie = self.__cookie
+            body = self._instantiate_simple_query('aaaRefresh', inName=login,
+                                                  inPassword=password,
+                                                  inCookie=cookie)
+            reply_xml, conn = self._perform_xml_call(body)
+            self._check_is_error(reply_xml.firstChild)
+            response_atom = reply_xml.firstChild
+            return self._get_cookie_from_xml(response_atom)
+        except KeyError:
+            raise UcsmFatalError("Wrong reply syntax.")
+        finally:
+            self.refreshing = False
+            LOG.debug('Notify workers for refresh stop')
+            self.__wait_refresh_cond.notify_all()
+            self.__wait_refresh_cond.release()
+            LOG.debug('End critical section for refresh')
+
     def login(self, login, password, cookie_timeout=60 * 10):
         """Performs authorisation and retrieving cookie from server.
 Cookie refresh will be performed automatically."""
@@ -156,9 +231,8 @@ Cookie refresh will be performed automatically."""
         self.version = None
         self.session_id = None
         try:
-            body = self._instantiate_simple_query('aaaLogin', inName=login,
+            reply_xml, conn = self._perform_query('aaaLogin', inName=login,
                                                   inPassword=password)
-            reply_xml, conn = self._perform_xml_call(body)
             self._check_is_error(reply_xml.firstChild)
             response_atom = reply_xml.firstChild
             self._get_cookie_from_xml(response_atom)
@@ -179,13 +253,13 @@ Cookie refresh will be performed automatically."""
         self.__login = login
         self.__password = password
 
+    @_syncronized_request
     def logout(self):
         try:
             if self.__refresh_timer:
                 self.__refresh_timer.cancel()
             cookie = self.__cookie
-            body = self._instantiate_simple_query('aaaLogout', inCookie=cookie)
-            reply_xml, conn = self._perform_xml_call(body)
+            reply_xml, conn = self._perform_query('aaaLogout', inCookie=cookie)
             self._check_is_error(reply_xml.firstChild)
             response_atom = reply_xml.firstChild
             if response_atom.attributes["response"].value == "yes":
@@ -204,22 +278,6 @@ Cookie refresh will be performed automatically."""
     def is_logged_in(self):
         return self.__cookie is not None
 
-    def refresh(self):
-        """Performs authorisation and retrieving cookie from server.
-Cookie refresh will be performed automatically."""
-        try:
-            login = self.__login
-            password = self.__password
-            cookie = self.__cookie
-            body = self._instantiate_simple_query('aaaRefresh', inName=login,
-                                                  inPassword=password,
-                                                  inCookie=cookie)
-            reply_xml, conn = self._perform_xml_call(body)
-            self._check_is_error(reply_xml.firstChild)
-            response_atom = reply_xml.firstChild
-            return self._get_cookie_from_xml(response_atom)
-        except KeyError:
-            raise UcsmFatalError("Wrong reply syntax.")
 
     def _get_single_object_from_response(self, data):
         try:
@@ -276,6 +334,7 @@ Cookie refresh will be performed automatically."""
             raise UcsmFatalError('No outUnresolved section'
                                  'in server response!')
 
+    @_syncronized_request
     def resolve_children(self, class_id='', dn='', hierarchy=False,
                          filter=UcsmFilterOp()):
         """Returns list of objects.
@@ -294,6 +353,7 @@ Cookie refresh will be performed automatically."""
         return self._get_objects_from_response(data)
 
     # TODO: unexpected behavior with recursive option
+    @_syncronized_request
     def scope(self, class_id, dn, filter=UcsmFilterOp(), hierarchy=False,
               recursive=False):
         data, conn = self._perform_query('configScope',
@@ -308,6 +368,7 @@ Cookie refresh will be performed automatically."""
         self._check_is_error(data.firstChild)
         return self._get_objects_from_response(data)
 
+    @_syncronized_request
     def resolve_class(self, class_id, filter=UcsmFilterOp(), hierarchy=False):
         data, conn = self._perform_query('configResolveClass',
                                          filter=filter,
@@ -318,6 +379,7 @@ Cookie refresh will be performed automatically."""
         self._check_is_error(data.firstChild)
         return self._get_objects_from_response(data)
 
+    @_syncronized_request
     def resolve_classes(self, classes, hierarchy=False):
         classes_node = minidom.Element('inIds')
         for cls in classes:
@@ -333,6 +395,7 @@ Cookie refresh will be performed automatically."""
         self._check_is_error(data.firstChild)
         return self._get_objects_from_response(data)
 
+    @_syncronized_request
     def resolve_dn(self, dn, hierarchy=False):
         data, conn = self._perform_query('configResolveDn',
                                          cookie=self.__cookie,
@@ -346,6 +409,7 @@ Cookie refresh will be performed automatically."""
         else:
             return None
 
+    @_syncronized_request
     def resolve_dns(self, dns, hierarchy=False):
         """Returns tuple contains list of resolved objects and list
 of unresolved dns."""
@@ -365,6 +429,7 @@ of unresolved dns."""
         unresolved = self._get_unresolved_from_response(data)
         return resolved, unresolved
 
+    @_syncronized_request
     def find_dns_by_class_id(self, class_id, filter=None):
         data, conn = self._perform_query('configFindDnsByClassId',
                                          filter=filter,
@@ -380,6 +445,7 @@ of unresolved dns."""
         except (IndexError, KeyError):
             raise UcsmFatalError('No outDns section in server response!')
 
+    @_syncronized_request
     def resolve_parent(self, dn, hierarchy=False):
         data, conn = self._perform_query('configResolveParent',
                                          cookie=self.__cookie,
@@ -430,6 +496,7 @@ of unresolved dns."""
     def update_object(self, conf, hierarchy=False):
         return self._conf_mo_status(conf, 'modified', hierarchy=hierarchy)
 
+    @_syncronized_request
     def conf_mo(self, config, dn="", hierarchy=False):
         """Modifies or creates config. Special config object attribute 'status'
 is used to determines action. Possible values:
@@ -447,6 +514,7 @@ is used to determines action. Possible values:
         res = self._get_single_object_from_response(data)
         return res
 
+    @_syncronized_request
     def conf_mos(self, configs, hierarchy=False):
         """Gets dictionary of dn:config as configs argument. Equivalent for
 several configConfMo requests. Returns dirtionary of dn:canged_config.
@@ -467,6 +535,7 @@ Possible values: ('created', 'deleted', 'modified')."""
         self._check_is_error(data.firstChild)
         return self._get_pairs_from_response(data)
 
+    @_syncronized_request
     def estimate_impact(self, configs):
         """Calculates impact of changing config on server.
 Returns four lists: ackables, old ackables, affected and old affected
@@ -494,6 +563,7 @@ configs."""
         except KeyError:
             raise
 
+    @_syncronized_request
     def conf_mo_group(self, dns, config, hierarchy=False):
         """Makes equivalent changes in several dns.
         """
@@ -513,6 +583,7 @@ configs."""
         self._check_is_error(data.firstChild)
         return self._get_objects_from_response(data)
 
+    @_syncronized_request
     def clone_profile(self, dn, name, target_org_dn='org-root',
                       hierarchy=True):
         data, conn = self._perform_query('lsClone',
@@ -526,6 +597,7 @@ configs."""
         res = self._get_single_object_from_response(data)
         return res
 
+    @_syncronized_request
     def instantiate_template(self, dn, name, target_org_dn='org-root',
                              hierarchy=False):
         """Returns created profile."""
@@ -540,6 +612,7 @@ configs."""
         res = self._get_single_object_from_response(data)
         return res
 
+    @_syncronized_request
     def instantiate_n_template(self, dn, target_org_dn='org-root', prefix='',
                                number=1, hierarchy=False):
         data, conn = self._perform_query('lsInstantiateNTemplate',
@@ -553,6 +626,7 @@ configs."""
         self._check_is_error(data.firstChild)
         return self._get_objects_from_response(data)
 
+    @_syncronized_request
     def instantiate_n_template_named(self, dn, name_set,
                                      target_org_dn='org-root',
                                      hierarchy=True):
@@ -573,6 +647,7 @@ configs."""
         self._check_is_error(data.firstChild)
         return self._get_objects_from_response(data)
 
+    @_syncronized_request
     def resolve_elements(self, dn, class_id, single_level=False,
                          hierarchy=False, filter=UcsmFilterOp()):
         """Recursively resolves all elements that org can work with"""
