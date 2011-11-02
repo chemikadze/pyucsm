@@ -159,33 +159,31 @@ class UcsmConnection(object):
             httplib.HTTPConnection(self.host, self.port, *args, **kwargs)
 
     @decorator
-    def _syncronized_request(f):
-        def wrapper(self, *args, **kwargs):
+    def _syncronized_request(f, self, *args, **kwargs):
+        try:
             try:
-                try:
-                    LOG.debug('Critical section for wait_refresh')
-                    self.__wait_refresh_cond.acquire()
-                    if self.refreshing:
-                        LOG.debug('Waiting for refresh to end')
-                        self.__wait_refresh_cond.wait(self.refresh_period)
-                        LOG.debug('Ended waiting for refresh')
-                    self.concurrent_requests += 1
-                finally:
-                    self.__wait_refresh_cond.release()
-                    LOG.debug('End critical section for wait_refresh')
-                return f(self, *args, **kwargs)
+                LOG.debug('Critical section for wait_refresh')
+                self.__wait_refresh_cond.acquire()
+                if self.refreshing:
+                    LOG.debug('Waiting for refresh to end')
+                    self.__wait_refresh_cond.wait(self.refresh_period)
+                    LOG.debug('Ended waiting for refresh')
+                self.concurrent_requests += 1
             finally:
-                LOG.debug('Critical section for stop_cond')
-                self.__wait_stop_cond.acquire()
-                self.concurrent_requests -= 1
-                if not self.concurrent_requests:
-                    LOG.debug('Notify reqest for workers stop')
-                    self.__wait_stop_cond.notify_all()
-                LOG.debug('Current concurrent workers: %s' %
-                            self.concurrent_requests)
-                self.__wait_stop_cond.release()
-                LOG.debug('End critical section for stop_cond')
-        return wrapper
+                self.__wait_refresh_cond.release()
+                LOG.debug('End critical section for wait_refresh')
+            return f(self, *args, **kwargs)
+        finally:
+            LOG.debug('Critical section for stop_cond')
+            self.__wait_stop_cond.acquire()
+            self.concurrent_requests -= 1
+            if not self.concurrent_requests:
+                LOG.debug('Notify reqest for workers stop')
+                self.__wait_stop_cond.notify_all()
+            LOG.debug('Current concurrent workers: %s' %
+                        self.concurrent_requests)
+            self.__wait_stop_cond.release()
+            LOG.debug('End critical section for stop_cond')
 
     def refresh(self):
         """Performs authorisation and retrieving cookie from server.
