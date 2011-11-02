@@ -36,7 +36,7 @@ ONLY_DN = False
 HIERARCHY = False
 
 
-def gener_descr(func):
+def gener_descr(func, name):
     args = getargspec(func)[0]
     args = args[args[0] == 'self':]
     templ = "Method:\t\t%(name)s"
@@ -44,7 +44,7 @@ def gener_descr(func):
         templ += '\nArguments:\t%(args)s'
     if func.func_doc:
         templ += '\nDocumentation:\t%(doc)s'
-    return templ % {'name': func.func_name, 'args': ', '.join(args),
+    return templ % {'name': name, 'args': ', '.join(args),
        'doc': func.func_doc}
 
 
@@ -58,7 +58,7 @@ def get_possible_opts(cls):
 
 
 def create_doc(cls):
-    descr = '\n\n'.join(gener_descr(attr)
+    descr = '\n\n'.join(gener_descr(attr, attr_name)
             for attr_name, attr in cls.__dict__.items()
                 if attr_name not in IGNORE \
                     and attr_name[0] != '_' \

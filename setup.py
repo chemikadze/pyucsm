@@ -14,7 +14,7 @@ requirements = []
 
 setup(
     name = "pyucsm",
-    version = "0.1.5a1",
+    version = "0.1.6a1",
     description = "Client library for Cisco UCS XML API",
     long_description = read('README'),
     url = 'https://github.com/chemikadze/pyucsm',

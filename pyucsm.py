@@ -26,13 +26,13 @@
 
 import httplib
 import logging
-import time
 import os
 import socket
 from xml.dom import minidom
 import xml.dom as dom
 import threading
 from threading import Timer
+from decorator import decorator
 
 DEBUG = False
 
@@ -158,6 +158,7 @@ class UcsmConnection(object):
             self._create_connection = lambda:\
             httplib.HTTPConnection(self.host, self.port, *args, **kwargs)
 
+    @decorator
     def _syncronized_request(f):
         def wrapper(self, *args, **kwargs):
             try:
