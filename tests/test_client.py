@@ -163,17 +163,17 @@ class TestUcsmConnection(MyBaseTest):
     def test_simple_query_construct(self):
         conn = pyucsm.UcsmConnection('host', 80)
         self.assertXmlEquals('<firsttest />',
-                                conn._instantiate_simple_query('firsttest'))
+                                conn._instantiate_query('firsttest'))
         self.assertXmlEquals('<secondtest one="1" two="zwei" />',
-                                conn._instantiate_simple_query('secondtest', one=1, two="zwei"))
+                                conn._instantiate_query('secondtest', one=1, two="zwei"))
 
     def test_child_query_construct(self):
         conn = pyucsm.UcsmConnection('host', 80)
         self.assertXmlEquals('<secondtest one="1" two="zwei" />',
-                                conn._instantiate_simple_query('secondtest', one=1, two="zwei"))
+                                conn._instantiate_query('secondtest', one=1, two="zwei"))
         wish = """<getSmth cookie="123456"><inFilter><gt class="blade" prop="cores" value="2" /></inFilter></getSmth>"""
         self.assertXmlEquals(wish,
-                             conn._instantiate_complex_query('getSmth',
+                             conn._instantiate_query('getSmth',
                                                              child_data_= (pyucsm.UcsmAttribute('blade','cores')>2).xml(),
                                                              cookie='123456'))
 
@@ -268,7 +268,7 @@ class TestUcsmConnection(MyBaseTest):
                 c.login(_login, _password)
                 src = pyucsm.UcsmObject()
                 src.ucs_class = 'aaaLdapEp'
-                src.attributes['timeout'] = random.randint(0, 60)
+                src.attributes['timeout'] = random.randint(0, 10)
                 res = c.conf_mo(src, dn='sys/ldap-ext')
                 self.assertEquals(int(res.attributes['timeout']), src.attributes['timeout'])
             finally:

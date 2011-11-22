@@ -205,11 +205,9 @@ Cookie refresh will be performed automatically."""
             login = self.__login
             password = self.__password
             cookie = self.__cookie
-            body = self._instantiate_simple_query('aaaRefresh', inName=login,
-                                                  inPassword=password,
-                                                  inCookie=cookie)
-            reply_xml, conn = self._perform_xml_call(body)
-            self._check_is_error(reply_xml.firstChild)
+            reply_xml, _ = self._perform_query('aaaRefresh', inName=login,
+                                               inPassword=password,
+                                               inCookie=cookie)
             response_atom = reply_xml.firstChild
             return self._get_cookie_from_xml(response_atom)
         except KeyError:
@@ -254,6 +252,8 @@ Cookie refresh will be performed automatically."""
 
     @_syncronized_request
     def logout(self):
+        if not self.__cookie:
+            return
         try:
             if self.__refresh_timer:
                 self.__refresh_timer.cancel()
@@ -264,8 +264,10 @@ Cookie refresh will be performed automatically."""
             if response_atom.attributes["response"].value == "yes":
                 self._check_is_error(response_atom)
                 status = response_atom.attributes["outStatus"].value
+                self.set_auth(None)
                 self.session_id = None
                 self.version = None
+                self.cookie_timeout = None
                 return status
             else:
                 raise UcsmFatalError()
@@ -385,7 +387,7 @@ Cookie refresh will be performed automatically."""
             childnode = minidom.Element('id')
             childnode.setAttribute('value', cls)
             classes_node.appendChild(childnode)
-        data, conn = self._perform_complex_query('configResolveClasses',
+        data, conn = self._perform_query('configResolveClasses',
                                                  data=classes_node,
                                                  cookie=self.__cookie,
                                                  inHierarchical=hierarchy
@@ -417,7 +419,7 @@ of unresolved dns."""
             childnode = minidom.Element('dn')
             childnode.setAttribute('value', dn)
             dns_node.appendChild(childnode)
-        data, conn = self._perform_complex_query('configResolveDns',
+        data, conn = self._perform_query('configResolveDns',
                                                  data=dns_node,
                                                  cookie=self.__cookie,
                                                  inHierarchical=hierarchy
@@ -502,7 +504,7 @@ is used to determines action. Possible values:
 ('created', 'deleted', 'modified')."""
         in_config_node = minidom.Element('inConfig')
         in_config_node.appendChild(config.xml_node(hierarchy))
-        data, conn = self._perform_complex_query('configConfMo',
+        data, conn = self._perform_query('configConfMo',
                                                  data=in_config_node,
                                                  dn=dn,
                                                  cookie=self.__cookie,
@@ -528,7 +530,7 @@ Possible values: ('created', 'deleted', 'modified')."""
             conf.setAttribute('key', k)
             conf.appendChild(c.xml_node(hierarchy))
             configs_xml.appendChild(conf)
-        data, conn = self._perform_complex_query('configConfMos',
+        data, conn = self._perform_query('configConfMos',
                                                  cookie=self.__cookie,
                                                  data=configs_xml)
         self._check_is_error(data.firstChild)
@@ -545,7 +547,7 @@ configs."""
             conf.setAttribute('key', k)
             conf.appendChild(c.xml_node())
             configs_xml.appendChild(conf)
-        data, conn = self._perform_complex_query('configEstimateImpact',
+        data, conn = self._perform_query('configEstimateImpact',
                                                  cookie=self.__cookie,
                                                  data=configs_xml)
         self._check_is_error(data.firstChild)
@@ -573,7 +575,7 @@ configs."""
             dn_xml = minidom.Element('dn')
             dn_xml.setAttribute('value', dn)
             dns_xml.appendChild(dn_xml)
-        data, conn = self._perform_complex_query('configConfMoGroup',
+        data, conn = self._perform_query('configConfMoGroup',
                                                  cookie=self.__cookie,
                                                  data=[dns_xml, config_xml],
                                                  inHierarchical=hierarchy
@@ -635,7 +637,7 @@ configs."""
             name_elem = minidom.Element('dn')
             name_elem.setAttribute('value', name)
             inNames.appendChild(name_elem)
-        data, conn = self._perform_complex_query('lsInstantiateNNamedTemplate',
+        data, conn = self._perform_query('lsInstantiateNNamedTemplate',
                                                  inNames,
                                                  dn=dn,
                                                  cookie=self.__cookie,
@@ -688,23 +690,6 @@ configs."""
                                 "errorDescr"].value.encode('utf8')
             raise UcsmResponseError(error_code, error_description)
 
-    def _perform_xml_call(self, request_data, headers=None):
-        conn = self._create_connection()
-        body = request_data
-        LOG.debug(">> %s", body)
-        try:
-            conn.request("POST", self.__ENDPOINT, body)
-            reply = conn.getresponse()
-            reply_data = reply.read()
-        except socket.error, e:
-            raise UcsmFatalError('Error during connecting: %s' % e)
-        LOG.debug("<< %s", reply_data)
-        try:
-            reply_xml = minidom.parseString(reply_data)
-        except:
-            raise UcsmFatalError("Error during XML parsing.")
-        return reply_xml, conn
-
     def iter_events(self, filter=UcsmFilterOp()):
         """Starts listen events, iterating through them.
 Yields event id and configuraion."""
@@ -721,9 +706,9 @@ Yields event id and configuraion."""
                         yield event_id, child
 
     def _iter_xml_events(self, filter=UcsmFilterOp()):
-        request_data = self._instantiate_complex_query('eventSubscribe',
+        request_data = self._instantiate_query('eventSubscribe',
                            child_data=filter.final_xml_node(),
-                           cookie=self.__cookie)
+                           cookie=self.__cookie).toxml()
         conn = self._create_connection()
         body = request_data
         LOG.debug(">> %s", body)
@@ -760,52 +745,61 @@ Yields event id and configuraion."""
         else:
             raise UcsmFatalError()
 
-    def _perform_query(self, method, filter=None, **kwargs):
-        """Gets query method name and its parameters.
-Filter must be an instance of class, derived from UcsmFilterToken."""
-        if filter is None:
-            body = self._instantiate_simple_query(method, **kwargs)
-        else:
-            body = self._instantiate_complex_query(method,
-                       child_data=filter.final_xml_node(), **kwargs)
-        data, conn = self._perform_xml_call(body)
-        return data, conn
-
-    def _perform_complex_query(self, method, data, filter=None, **kwargs):
+    def _perform_query(self, method, data=None, filter=None, **kwargs):
         """Gets query method name and its parameters. Filter must be an
-instance of class, derived from UcsmFilterToken. Data is a string for inner
-xml body."""
-        if filter is None:
-            body = self._instantiate_complex_query(method, child_data=data,
-                                                   **kwargs)
+instance of class, derived from UcsmFilterToken. Data is XML node or iterable
+of XML nodes."""
+        def _iter(*args):
+            for arg in args:
+                if _iterable(arg):
+                    for elem in arg:
+                        yield  elem
+                else:
+                    yield arg
+        filter = filter and filter.final_xml_node()
+        subtree = [elem for elem in _iter(data, filter) if elem]
+        body = self._instantiate_query(method, child_data=subtree, **kwargs)
+
+        if method in ('aaaLogin', 'aaaRefresh'):
+            LOG.debug(">> %s",
+                      body.replace('inPassword="%(inPassword)s"' % kwargs,
+                                   'inPassword="<password>"'))
         else:
-            body = self._instantiate_complex_query(method,
-                       child_data=filter.final_xml_node() + '\n' + data,
-                       **kwargs)
-        data, conn = self._perform_xml_call(body)
+            LOG.debug(">> %s", body)
+        data, conn = self._submit_request(body)
         return data, conn
 
-    def _instantiate_simple_query(self, method, **kwargs):
+    def _submit_request(self, request_data, headers=None):
+        conn = self._create_connection()
+        body = request_data
+        try:
+            conn.request("POST", self.__ENDPOINT, body)
+            reply = conn.getresponse()
+            reply_data = reply.read()
+            LOG.debug("<< %s", reply_data)
+        except socket.error, e:
+            raise UcsmFatalError('Error during connecting: %s' % e)
+        try:
+            reply_xml = minidom.parseString(reply_data)
+        except:
+            raise UcsmFatalError("Error during XML parsing.")
+        return reply_xml, conn
+
+    def _instantiate_query(self, method, child_data=None, **kwargs):
+        """Formats query with some child nodes. Child data can be XML node or
+iterable of XML nodes."""
         query = minidom.Element(method)
         for key, value in kwargs.items():
             query.setAttribute(key, str(value))
-        return query.toxml()
 
-    def _instantiate_complex_query(self, method, child_data=None, **kwargs):
-        """Formats query with some child nodes. Child data can be string or
-list of strings."""
-        if child_data is not None:
-            query = minidom.Element(method)
-            for key, value in kwargs.items():
-                query.setAttribute(key, str(value))
+        if child_data:
             if _iterable(child_data):
                 for child in child_data:
                     query.appendChild(child)
             else:
                 query.appendChild(child_data)
-            return query.toxml()
-        else:
-            return self._instantiate_simple_query(method, **kwargs)
+            
+        return query.toxml()
 
 
 class UcsmAttribute(object):
