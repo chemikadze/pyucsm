@@ -25,6 +25,9 @@
 
 import sys
 import os
+import socket
+import errno
+from time import sleep
 
 sys.path.insert(0, os.path.normpath(os.path.join(os.path.dirname(__file__),
                                                  os.path.pardir)))
@@ -640,6 +643,63 @@ class TestUcsmObject(MyBaseTest):
         objb = obja.copy()
         self.assertIsNot(obja, objb)
         self.assertEqual(obja, objb)
+
+
+class TestHangups(unittest.TestCase):
+
+    class MockSocket:
+
+        mock_login_response = \
+        """<aaaLogin cookie="test"
+                     response="yes"
+                     outCookie="test"
+                     outRefreshPeriod="600"
+                     outPriv="admin,read-only"
+                     outDomains=""
+                     outChannel="noencssl"
+                     outEvtChannel="noencssl"
+                     outSessionId="web_41246_A"
+                     outVersion="1.4(0.61490)"/>"""
+
+        mock_response = \
+        """<configResolveDn dn="org-root" cookie="nope" response="yes">
+              <outConfig>
+                <orgOrg dn="org-root" name="root" />
+              </outConfig>
+            </configResolveDn>"""
+
+        counter = 0
+
+
+        class MockResponse:
+
+            def __init__(self, data):
+                self.data = data
+
+            def read(self):
+                return self.data
+
+        def request(self, method, url, body):
+            if TestHangups.MockSocket.counter == 2:
+                raise socket.error((errno.ECONNREFUSED,
+                                    "[Errno 111] ECONNREFUSED"))
+            TestHangups.MockSocket.counter += 1
+
+        def getresponse(self):
+            if TestHangups.MockSocket.counter == 1:
+                return self.MockResponse(self.mock_login_response)
+            else:
+                return self.MockResponse(self.mock_response)
+        
+
+    def testConnRefused(self):
+        c = pyucsm.UcsmConnection('localhost', 1488)
+        c._create_connection = lambda *args, **kwargs: self.MockSocket()
+        c.login("admin", "superadmin777", 2)
+        c.resolve_dn("org-root")
+        sleep(5)
+        with self.assertRaises(pyucsm.UcsmError):
+            c.resolve_dn("org-root")
 
 
 if __name__ == '__main__':
